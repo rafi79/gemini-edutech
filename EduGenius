@@ -1,0 +1,30 @@
+EduGenius/
+├── app.py                   # Main Streamlit application entry point
+├── config/
+│   ├── __init__.py
+│   └── settings.py          # Configuration settings, environment variables
+├── services/
+│   ├── __init__.py
+│   ├── gemini_service.py    # Gemini API integration
+│   ├── document_service.py  # Document processing functions
+│   ├── audio_service.py     # Audio processing functions
+│   ├── video_service.py     # Video processing functions
+│   └── image_service.py     # Image processing functions
+├── ui/
+│   ├── __init__.py
+│   ├── styles.py            # CSS and styling
+│   ├── components.py        # Reusable UI components
+│   └── pages/
+│       ├── __init__.py
+│       ├── learning_assistant.py
+│       ├── document_analysis.py
+│       ├── visual_learning.py
+│       ├── audio_analysis.py
+│       ├── video_learning.py
+│       ├── quiz_generator.py
+│       └── concept_mapper.py
+├── utils/
+│   ├── __init__.py
+│   ├── file_utils.py        # File handling utilities
+│   └── prompt_utils.py      # Prompt generation utilities
+└── requirements.txt         # Project dependencies
