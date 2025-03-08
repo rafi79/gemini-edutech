@@ -4,7 +4,7 @@ from PIL import Image
 import io
 import os
 import tempfile
-from google import genai
+from google import generativeai as genai
 from google.genai import types
 
 # Set page configuration
