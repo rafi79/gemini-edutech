@@ -233,28 +233,29 @@ with selected_tab[0]:
         
         # Add multimedia upload option
         upload_option = st.selectbox("", ["Add Media", "Image", "Audio", "Video", "Document"], key="upload_selector")
-        
-      if upload_option != "Add Media":
-             if upload_option == "Image":
-              uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
-            elif upload_option == "Audio":
-              uploaded_file = st.file_uploader("Upload audio:", type=["mp3", "wav", "m4a"], key="chat_audio_upload")
-            elif upload_option == "Video":
-              uploaded_file = st.file_uploader("Upload video:", type=["mp4", "mov", "avi"], key="chat_video_upload")
-            elif upload_option == "Document":
-              uploaded_file = st.file_uploader("Upload document:", type=["pdf", "docx", "txt"], key="chat_doc_upload")
     
+    # Handle file uploads
+    uploaded_file = None
+    if upload_option != "Add Media":
+        if upload_option == "Image":
+            uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
+        elif upload_option == "Audio":
+            uploaded_file = st.file_uploader("Upload audio:", type=["mp3", "wav", "m4a"], key="chat_audio_upload")
+        elif upload_option == "Video":
+            uploaded_file = st.file_uploader("Upload video:", type=["mp4", "mov", "avi"], key="chat_video_upload")
+        elif upload_option == "Document":
+            uploaded_file = st.file_uploader("Upload document:", type=["pdf", "docx", "txt"], key="chat_doc_upload")
+        
+        if uploaded_file is not None:
+            # Display information about the uploaded file
+            st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
+            # Store the file reference in the session state for later use
+            st.session_state.current_upload = {
+                "file": uploaded_file,
+                "type": upload_option,
+                "name": uploaded_file.name
+            }
             
-            if uploaded_file is not None:
-        # Display information about the uploaded file
-                 st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
-        # You might want to store the file reference in the session state for later use
-                  st.session_state.current_upload = {
-                   "file": uploaded_file,
-                    "type": upload_option,
-                     "name": uploaded_file.name
-                       }
-
     # Processing user input
     if submit_button and user_input:
         # Add user message to chat
@@ -281,13 +282,13 @@ with selected_tab[0]:
         media_type = None
         media_bytes = None
         
-        if upload_option != "Add Media" and uploaded_file is not None:
+        if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
             has_multimedia = True
-            media_type = upload_option.lower()
-            media_bytes = uploaded_file.getvalue()
+            media_type = st.session_state.current_upload["type"].lower()
+            media_bytes = st.session_state.current_upload["file"].getvalue()
             
             # Add multimedia context to prompt
-            prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{uploaded_file.name}'. Please incorporate this into your response if relevant."
+            prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
         
         with st.spinner("Thinking..."):
             try:
@@ -832,211 +833,3 @@ This video would be valuable for students studying [subject] at the [level] leve
         else:
             st.markdown(f"**Analysis:** {message['content']}")
         st.markdown("---")
-
-# Quiz Generator tab
-with selected_tab[5]:
-    if st.session_state.current_mode != "Quiz Generator":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Quiz Generator"
-    
-    st.markdown("### AI Quiz Generator")
-    st.markdown("Generate personalized quizzes on any subject with adaptive difficulty")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        subject = st.text_input("Subject:", placeholder="e.g., World History, Calculus, Chemistry")
-        topic = st.text_input("Specific Topic:", placeholder="e.g., French Revolution, Derivatives, Periodic Table")
-        
-    with col2:
-        difficulty = st.select_slider("Difficulty Level:", options=["Beginner", "Elementary", "Intermediate", "Advanced", "Expert"])
-        question_types = st.multiselect("Question Types:", 
-                                       ["Multiple Choice", "True/False", "Short Answer", "Essay", "Matching"], 
-                                       default=["Multiple Choice"])
-    
-    num_questions = st.slider("Number of Questions:", min_value=5, max_value=30, value=10, step=5)
-    
-    include_answers = st.checkbox("Include Answers and Explanations", value=True)
-    adaptive_feedback = st.checkbox("Generate Adaptive Feedback", value=True)
-    
-    if st.button("Generate Quiz", use_container_width=True):
-        if subject and topic:
-            with st.spinner("Generating quiz..."):
-                try:
-                    # Create quiz generation prompt
-                    quiz_prompt = f"Generate a {difficulty} level quiz on {subject}: {topic}. "
-                    quiz_prompt += f"Include {num_questions} questions of the following types: {', '.join(question_types)}. "
-                    
-                    if include_answers:
-                        quiz_prompt += "Include correct answers and detailed explanations. "
-                    
-                    if adaptive_feedback:
-                        quiz_prompt += "For each question, provide adaptive feedback for both correct and incorrect responses. "
-                    
-                    quiz_prompt += "Format the quiz in a clean, organized way that's easy to read and implement in an educational setting."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {difficulty} level quiz with {num_questions} questions on {subject}: {topic}"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.7),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # Generate content
-                    response = model.generate_content(quiz_prompt)
-                    
-                    # Extract response text
-                    response_text = response.text
-                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                
-                except Exception as e:
-                    st.error(f"Error generating quiz: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-        else:
-            st.warning("Please enter both a subject and a specific topic.")
-    
-    # Display generated quiz
-    if st.session_state.chat_history:
-        st.markdown("### Generated Quiz")
-        # Show only the most recent quiz
-        for i in range(len(st.session_state.chat_history)-1, -1, -1):
-            if st.session_state.chat_history[i]["role"] == "assistant":
-                st.markdown(st.session_state.chat_history[i]["content"])
-                break
-
-# Concept Mapper tab
-with selected_tab[4]:
-    if st.session_state.current_mode != "Concept Mapper":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Concept Mapper"
-    
-    st.markdown("### AI Concept Mapper")
-    st.markdown("Create visual concept maps to understand relationships between ideas and topics")
-    
-    main_concept = st.text_input("Main Concept/Topic:", placeholder="e.g., Photosynthesis, Democracy, Machine Learning")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        depth = st.slider("Map Depth:", min_value=1, max_value=5, value=3, 
-                         help="How many levels of related concepts to include")
-    with col2:
-        breadth = st.slider("Map Breadth:", min_value=2, max_value=8, value=4, 
-                           help="How many related concepts per level")
-    
-    map_style = st.radio("Map Style:", ["Hierarchical", "Network", "Mind Map", "Process Flow"])
-    
-    additional_context = st.text_area("Additional Context:", 
-                                     placeholder="Add any specific focus areas or context for the concept map")
-    
-    if st.button("Generate Concept Map", use_container_width=True):
-        if main_concept:
-            with st.spinner("Generating concept map..."):
-                try:
-                    # Create concept map generation prompt
-                    map_prompt = f"Generate a {map_style} concept map for '{main_concept}' with a depth of {depth} levels and {breadth} concepts per level. "
-                    
-                    if additional_context:
-                        map_prompt += f"Additional context: {additional_context}. "
-                    
-                    map_prompt += "Include key relationships, definitions, and connections between concepts. "
-                    map_prompt += "Format the output as a text-based concept map structure with clear indentation and relationship indicators."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {map_style} concept map for '{main_concept}'"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.3),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # Generate content
-                    response = model.generate_content(map_prompt)
-                    
-                    # Extract response text
-                    response_text = response.text
-                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                
-                except Exception as e:
-                    st.error(f"Error generating concept map: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-        else:
-            st.warning("Please enter a main concept or topic.")
-    
-    # Display generated concept map
-    if st.session_state.chat_history:
-        st.markdown("### Generated Concept Map")
-        # Show only the most recent concept map
-        for i in range(len(st.session_state.chat_history)-1, -1, -1):
-            if st.session_state.chat_history[i]["role"] == "assistant":
-                st.markdown(st.session_state.chat_history[i]["content"])
-                break
-
-# Add features and benefits showcase in the sidebar
-with st.sidebar:
-    st.markdown("## EduGenius Features")
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">💬</div>
-        <div class="feature-title">AI Chat Tutor</div>
-        <p>Natural, conversational learning with smart memory and context understanding</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">🔍</div>
-        <div class="feature-title">Multimodal Learning</div>
-        <p>Process text, images, audio, video and documents for comprehensive understanding</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">🧠</div>
-        <div class="feature-title">Adaptive Learning</div>
-        <p>Personalized responses based on learning level, style, and needs</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">🎬</div>
-        <div class="feature-title">Video & Audio Analysis</div>
-        <p>Extract insights, transcriptions, and learning moments from multimedia</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">📊</div>
-        <div class="feature-title">Visual Concept Mapping</div>
-        <p>Transform complex topics into visual knowledge structures</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">📝</div>
-        <div class="feature-title">Dynamic Assessments</div>
-        <p>Generate tailored quizzes with adaptive feedback</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("### Powered by Google Gemini")
-    st.markdown("* 1M token input context")
-    st.markdown("* Multimodal capabilities (Text, Image, Video, Audio)")
-    st.markdown("* Latest knowledge (June 2024)")
-    st.markdown("* Advanced reasoning")
-    
-    # Add a version number and contact info
-    st.markdown("---")
-    st.markdown("#### EduGenius v1.0.0")
-    st.markdown("For client demonstration purposes")
-    st.caption("© 2025 Your Company. All rights reserved.")
