@@ -245,6 +245,8 @@ with selected_tab[0]:
                 uploaded_file = st.file_uploader("Upload document:", type=["pdf", "docx", "txt"], key="chat_doc_upload")
             
             if uploaded_file is not None:
+                  st.success(f"Successfully uploaded: {uploaded_file.name}")
+
     # Processing user input
     if submit_button and user_input:
         # Add user message to chat
