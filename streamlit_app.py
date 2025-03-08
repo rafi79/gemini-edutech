@@ -1,136 +1,4 @@
-# Concept Mapper tab
-with selected_tab[6]:
-    if st.session_state.current_mode != "Concept Mapper":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Concept Mapper"
-    
-    st.markdown("### AI Concept Mapper")
-    st.markdown("Create visual concept maps to understand relationships between ideas and topics")
-    
-    main_concept = st.text_input("Main Concept/Topic:", placeholder="e.g., Photosynthesis, Democracy, Machine Learning")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        depth = st.slider("Map Depth:", min_value=1, max_value=5, value=3, 
-                         help="How many levels of related concepts to include")
-    with col2:
-        breadth = st.slider("Map Breadth:", min_value=2, max_value=8, value=4, 
-                           help="How many related concepts per level")
-    
-    map_style = st.radio("Map Style:", ["Hierarchical", "Network", "Mind Map", "Process Flow"])
-    
-    additional_context = st.text_area("Additional Context:", 
-                                     placeholder="Add any specific focus areas or context for the concept map")
-    
-    if st.button("Generate Concept Map", use_container_width=True):
-        if main_concept:
-            with st.spinner("Generating concept map..."):
-                try:
-                    # Create concept map generation prompt
-                    map_prompt = f"Generate a {map_style} concept map for '{main_concept}' with a depth of {depth} levels and {breadth} concepts per level. "
-                    
-                    if additional_context:
-                        map_prompt += f"Additional context: {additional_context}. "
-                    
-                    map_prompt += "Include key relationships, definitions, and connections between concepts. "
-                    map_prompt += "Format the output as a text-based concept map structure with clear indentation and relationship indicators."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {map_style} concept map for '{main_concept}'"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.3),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # Generate content
-                    response = model.generate_content(map_prompt)
-                    
-                    # Extract response text
-                    response_text = response.text
-                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                
-                except Exception as e:
-                    st.error(f"Error generating concept map: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-        else:
-            st.warning("Please enter a main concept or topic.")
-    
-    # Display generated concept map
-    if st.session_state.chat_history:
-        st.markdown("### Generated Concept Map")
-        # Show only the most recent concept map
-        for i in range(len(st.session_state.chat_history)-1, -1, -1):
-            if st.session_state.chat_history[i]["role"] == "assistant":
-                st.markdown(st.session_state.chat_history[i]["content"])
-                break
-
-# Add features and benefits showcase in the sidebar
-with st.sidebar:
-    st.markdown("## EduGenius Features")
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">🎬</div>
-        <div class="feature-title">Video & Audio Analysis</div>
-        <p>Extract insights, transcriptions, and learning moments from multimedia</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">📊</div>
-        <div class="feature-title">Visual Concept Mapping</div>
-        <p>Transform complex topics into visual knowledge structures</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">📝</div>
-        <div class="feature-title">Dynamic Assessments</div>
-        <p>Generate tailored quizzes with adaptive feedback</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("### Powered by Google Gemini")
-    st.markdown("* 1M token input context")
-    st.markdown("* Multimodal capabilities (Text, Image, Video, Audio)")
-    st.markdown("* Latest knowledge (June 2024)")
-    st.markdown("* Advanced reasoning")
-    
-    # Add a version number and contact info
-    st.markdown("---")
-    st.markdown("#### EduGenius v1.0.0")
-    st.markdown("For client demonstration purposes")
-    st.caption("© 2025 Your Company. All rights reserved.")icon">💬</div>
-        <div class="feature-title">AI Chat Tutor</div>
-        <p>Natural, conversational learning with smart memory and context understanding</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">🔍</div>
-        <div class="feature-title">Multimodal Learning</div>
-        <p>Process text, images, audio, video and documents for comprehensive understanding</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-icon">🧠</div>
-        <div class="feature-title">Adaptive Learning</div>
-        <p>Personalized responses based on learning level, style, and needs</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-card">
-        <div class="feature-# Quiz Generator tab
+# Quiz Generator tab
 with selected_tab[5]:
     if st.session_state.current_mode != "Quiz Generator":
         st.session_state.chat_history = []
@@ -202,314 +70,7 @@ with selected_tab[5]:
         for i in range(len(st.session_state.chat_history)-1, -1, -1):
             if st.session_state.chat_history[i]["role"] == "assistant":
                 st.markdown(st.session_state.chat_history[i]["content"])
-                break# Video Learning tab
-with selected_tab[4]:
-    if st.session_state.current_mode != "Video Learning":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Video Learning"
-    
-    st.markdown("### Video Learning Assistant")
-    st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
-    
-    uploaded_video = st.file_uploader("Upload a video file:", type=["mp4", "mov", "avi", "mkv"])
-    
-    if uploaded_video is not None:
-        # Display video player
-        video_bytes = uploaded_video.getvalue()
-        st.video(video_bytes)
-        
-        video_analysis_options = st.multiselect("Select analysis types:", 
-                                      ["Video Transcription", "Content Summary", 
-                                       "Visual Concept Detection", "Key Moments Identification",
-                                       "Generate Quiz from Video", "Educational Value Assessment"])
-        
-        video_focus = st.selectbox("Educational Focus:", 
-                                ["General Analysis", "STEM Concepts", "Humanities Focus", 
-                                 "Language Learning", "Procedural Skills", "Critical Thinking"])
-        
-        if st.button("Analyze Video", use_container_width=True):
-            with st.spinner("Processing video..."):
-                try:
-                    # Create prompt for video analysis
-                    video_prompt = f"I've uploaded a video file named '{uploaded_video.name}'. "
-                    video_prompt += f"Please perform the following analyses: {', '.join(video_analysis_options)}. "
-                    video_prompt += f"Focus on {video_focus} educational aspects. "
-                    video_prompt += "Provide a detailed analysis of the educational value of this video."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # In production, you would process the video file here
-                    # For demo purposes, simulate the video analysis
-                    
-                    # Simulate an analysis response
-                    video_analysis = f"""
-# Video Analysis of {uploaded_video.name}
-
-## Content Summary
-This educational video covers [subject] with a focus on [specific topics]. The presenter demonstrates [concepts/skills] through visual examples and clear explanations.
-
-## Visual Concepts Detected
-- Concept 1 (00:15-01:30): Brief explanation
-- Concept 2 (02:45-04:10): Brief explanation
-- Concept 3 (05:20-07:45): Brief explanation
-
-## Key Educational Moments
-1. Introduction to [concept] (00:00-01:15)
-2. Demonstration of [technique/process] (03:20-05:40)
-3. Practice examples and applications (06:30-08:45)
-4. Summary and key takeaways (09:10-end)
-
-## Educational Value
-This video would be valuable for students studying [subject] at the [level] level. It effectively visualizes [complex concepts] that are difficult to convey through text alone.
-
-## Suggested Learning Activities
-- Pre-video introduction to basic terminology
-- Pause-point questions at key moments (times noted above)
-- Post-video assessment focusing on key concepts
-- Group discussion topics based on applications shown
-"""
-                    
-                    st.session_state.chat_history.append({"role": "assistant", "content": video_analysis})
-                    
-                    # Add interactive features
-                    st.markdown("### Video Interactive Learning")
-                    
-                    # Create tabs for different interactive features
-                    interactive_tabs = st.tabs(["Chat About Video", "Generate Timestamps", "Create Quiz"])
-                    
-                    with interactive_tabs[0]:
-                        st.markdown("#### Ask questions about this video")
-                        
-                        # Initialize video chat if not exists
-                        if "video_chat_history" not in st.session_state:
-                            st.session_state.video_chat_history = []
-                        
-                        # Display video chat history
-                        for message in st.session_state.video_chat_history:
-                            if message["role"] == "user":
-                                st.markdown(f"**You:** {message['content']}")
-                            else:
-                                st.markdown(f"**EduGenius:** {message['content']}")
-                            st.markdown("---")
-                        
-                        video_chat_input = st.text_input("Ask about this video:", 
-                                                placeholder="e.g., What are the main points covered in this video?")
-                        
-                        if st.button("Send", key="video_chat_button"):
-                            if video_chat_input:
-                                # Add to video chat history
-                                st.session_state.video_chat_history.append({"role": "user", "content": video_chat_input})
-                                
-                                # In a real implementation, you would process the video query here
-                                # For demo purposes, simulate a response
-                                chat_response = "I'd be happy to answer questions about the video content once the video processing capability is fully implemented. This would typically include information about the visual concepts, explanations, demonstrations, and educational value of the video you uploaded."
-                                
-                                st.session_state.video_chat_history.append({"role": "assistant", "content": chat_response})
-                                st.rerun()
-                    
-                    with interactive_tabs[1]:
-                        st.markdown("#### Generate Educational Timestamps")
-                        st.info("This would identify key moments in the video for educational purposes")
-                        
-                        timestamp_purpose = st.selectbox("Timestamp Purpose:", 
-                                                      ["Key Concepts", "Quiz Questions", "Discussion Points", "Practice Exercises"])
-                        
-                        if st.button("Generate Timestamps", key="timestamp_button"):
-                            # In a real implementation, you would analyze the video for timestamps
-                            # For demo purposes, display sample timestamps
-                            st.markdown("""
-                            ## Generated Educational Timestamps
-                            
-                            | Time | Content | Educational Value |
-                            |------|---------|-------------------|
-                            | 00:15 | Introduction to concept X | Establishes foundational knowledge |
-                            | 01:30 | First example demonstration | Visual application of theory |
-                            | 03:45 | Key insight explanation | Critical understanding point |
-                            | 05:20 | Common misconception addressed | Prevents learning errors |
-                            | 07:10 | Advanced application | Shows real-world relevance |
-                            | 09:30 | Summary of key points | Reinforces learning |
-                            """)
-                    
-                    with interactive_tabs[2]:
-                        st.markdown("#### Generate Quiz Based on Video")
-                        
-                        quiz_question_count = st.slider("Number of Questions:", min_value=3, max_value=15, value=5)
-                        quiz_format = st.selectbox("Quiz Format:", 
-                                                ["Multiple Choice", "True/False", "Mixed Formats", "Short Answer"])
-                        
-                        if st.button("Create Video Quiz", key="video_quiz_button"):
-                            # In a real implementation, you would generate questions based on video content
-                            # For demo purposes, display a sample quiz
-                            st.markdown(f"""
-                            ## Video Content Quiz ({quiz_question_count} Questions)
-                            
-                            1. **Question**: What is the main concept introduced at the beginning of the video?
-                               - A) Concept X
-                               - B) Concept Y
-                               - C) Concept Z
-                               - D) None of the above
-                               
-                            2. **Question**: According to the video, which of the following statements is true?
-                               - A) Statement 1
-                               - B) Statement 2
-                               - C) Statement 3
-                               - D) Statement 4
-                            
-                            3. **Question**: What technique was demonstrated at approximately 03:45 in the video?
-                               - A) Technique A
-                               - B) Technique B
-                               - C) Technique C
-                               - D) Technique D
-                            
-                            4. **Question**: The video suggests that the best application of this concept is in which field?
-                               - A) Field 1
-                               - B) Field 2
-                               - C) Field 3
-                               - D) All of the above
-                            
-                            5. **Question**: What was the concluding point made in the video?
-                               - A) Point A
-                               - B) Point B
-                               - C) Point C
-                               - D) Point D
-                            """)
-                
-                except Exception as e:
-                    st.error(f"Error analyzing video: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display video analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")# Audio Analysis tab
-with selected_tab[3]:
-    if st.session_state.current_mode != "Audio Analysis":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Audio Analysis"
-    
-    st.markdown("### Audio Learning Assistant")
-    st.markdown("Upload audio files for transcription, analysis, and educational insights")
-    
-    uploaded_audio = st.file_uploader("Upload an audio file:", type=["mp3", "wav", "m4a", "ogg"])
-    
-    if uploaded_audio is not None:
-        # Display audio player
-        st.audio(uploaded_audio, format="audio/mp3")
-        
-        analysis_options = st.multiselect("Select analysis types:", 
-                                     ["Transcription", "Content Summary", 
-                                      "Key Concepts Extraction", "Generate Quiz from Audio",
-                                      "Language Analysis", "Vocabulary Extraction"])
-        
-        language = st.selectbox("Audio Language (if known):", 
-                              ["Auto-detect", "English", "Spanish", "French", "German", 
-                               "Chinese", "Japanese", "Arabic", "Hindi", "Russian"])
-        
-        if st.button("Analyze Audio", use_container_width=True):
-            with st.spinner("Processing audio..."):
-                try:
-                    # Get audio bytes
-                    audio_bytes = uploaded_audio.getvalue()
-                    
-                    # Create prompt for audio analysis
-                    audio_prompt = f"I've uploaded an audio file named '{uploaded_audio.name}'. "
-                    audio_prompt += f"Please perform the following analyses: {', '.join(analysis_options)}. "
-                    
-                    if language != "Auto-detect":
-                        audio_prompt += f"The audio is in {language}. "
-                    
-                    audio_prompt += "Please provide a detailed analysis focusing on educational value."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"[Audio uploaded] Please analyze with: {', '.join(analysis_options)}"})
-                    
-                    # Create a generative model instance for audio
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # In production, you would process the audio file here
-                    # For demo purposes, simulate the audio analysis
-                    
-                    # Simulate an analysis response
-                    analysis_content = f"""
-# Audio Analysis of {uploaded_audio.name}
-
-## Transcription
-[This would normally contain the transcribed text from the audio file]
-
-## Content Summary
-This audio appears to contain educational content related to [subject]. The main topics covered include:
-- Topic 1
-- Topic 2
-- Topic 3
-
-## Key Concepts Identified
-- Concept 1: Brief explanation
-- Concept 2: Brief explanation
-- Concept 3: Brief explanation
-
-## Educational Value
-This audio would be suitable for students at the [level] level. It effectively explains [concepts] and could be integrated into curriculum for [subject] courses.
-"""
-                    
-                    st.session_state.chat_history.append({"role": "assistant", "content": analysis_content})
-                    
-                    # Add chat functionality for audio
-                    st.markdown("### Audio Chat")
-                    st.info("You can ask questions about this audio by typing below")
-                    
-                    # Initialize audio chat if not exists
-                    if "audio_chat_history" not in st.session_state:
-                        st.session_state.audio_chat_history = []
-                    
-                    # Display audio chat history
-                    for message in st.session_state.audio_chat_history:
-                        if message["role"] == "user":
-                            st.markdown(f"**You:** {message['content']}")
-                        else:
-                            st.markdown(f"**EduGenius:** {message['content']}")
-                    
-                    audio_chat_input = st.text_input("Ask about this audio:", 
-                                              placeholder="e.g., Can you summarize the main points from this lecture?")
-                    
-                    if st.button("Send", key="audio_chat_button"):
-                        if audio_chat_input:
-                            # Add to audio chat history
-                            st.session_state.audio_chat_history.append({"role": "user", "content": audio_chat_input})
-                            
-                            # In a real implementation, you would process the audio file here
-                            # For demo purposes, simulate the chat response
-                            chat_response = "I'd be happy to answer questions about the audio content once the audio processing capability is fully implemented. This would typically include details about the content, concepts, and educational aspects of the audio you uploaded."
-                            
-                            st.session_state.audio_chat_history.append({"role": "assistant", "content": chat_response})
-                
-                except Exception as e:
-                    st.error(f"Error analyzing audio: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display audio analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")import streamlit as st
+                breakimport streamlit as st
 import base64
 from PIL import Image
 import io
@@ -837,6 +398,7 @@ with selected_tab[0]:
                 st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
                 st.rerun()
 
+
 # Document Analysis tab
 with selected_tab[1]:
     if st.session_state.current_mode != "Document Analysis":
@@ -1026,6 +588,317 @@ with selected_tab[2]:
                     st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
     
     # Display visual analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
+
+# Audio Analysis tab
+with selected_tab[3]:
+    if st.session_state.current_mode != "Audio Analysis":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Audio Analysis"
+    
+    st.markdown("### Audio Learning Assistant")
+    st.markdown("Upload audio files for transcription, analysis, and educational insights")
+    
+    uploaded_audio = st.file_uploader("Upload an audio file:", type=["mp3", "wav", "m4a", "ogg"])
+    
+    if uploaded_audio is not None:
+        # Display audio player
+        st.audio(uploaded_audio, format="audio/mp3")
+        
+        analysis_options = st.multiselect("Select analysis types:", 
+                                     ["Transcription", "Content Summary", 
+                                      "Key Concepts Extraction", "Generate Quiz from Audio",
+                                      "Language Analysis", "Vocabulary Extraction"])
+        
+        language = st.selectbox("Audio Language (if known):", 
+                              ["Auto-detect", "English", "Spanish", "French", "German", 
+                               "Chinese", "Japanese", "Arabic", "Hindi", "Russian"])
+        
+        if st.button("Analyze Audio", use_container_width=True):
+            with st.spinner("Processing audio..."):
+                try:
+                    # Get audio bytes
+                    audio_bytes = uploaded_audio.getvalue()
+                    
+                    # Create prompt for audio analysis
+                    audio_prompt = f"I've uploaded an audio file named '{uploaded_audio.name}'. "
+                    audio_prompt += f"Please perform the following analyses: {', '.join(analysis_options)}. "
+                    
+                    if language != "Auto-detect":
+                        audio_prompt += f"The audio is in {language}. "
+                    
+                    audio_prompt += "Please provide a detailed analysis focusing on educational value."
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"[Audio uploaded] Please analyze with: {', '.join(analysis_options)}"})
+                    
+                    # Create a generative model instance for audio
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
+                    )
+                    
+                    # In production, you would process the audio file here
+                    # For demo purposes, simulate the audio analysis
+                    
+                    # Simulate an analysis response
+                    analysis_content = f"""
+# Audio Analysis of {uploaded_audio.name}
+
+## Transcription
+[This would normally contain the transcribed text from the audio file]
+
+## Content Summary
+This audio appears to contain educational content related to [subject]. The main topics covered include:
+- Topic 1
+- Topic 2
+- Topic 3
+
+## Key Concepts Identified
+- Concept 1: Brief explanation
+- Concept 2: Brief explanation
+- Concept 3: Brief explanation
+
+## Educational Value
+This audio would be suitable for students at the [level] level. It effectively explains [concepts] and could be integrated into curriculum for [subject] courses.
+"""
+                    
+                    st.session_state.chat_history.append({"role": "assistant", "content": analysis_content})
+                    
+                    # Add chat functionality for audio
+                    st.markdown("### Audio Chat")
+                    st.info("You can ask questions about this audio by typing below")
+                    
+                    # Initialize audio chat if not exists
+                    if "audio_chat_history" not in st.session_state:
+                        st.session_state.audio_chat_history = []
+                    
+                    # Display audio chat history
+                    for message in st.session_state.audio_chat_history:
+                        if message["role"] == "user":
+                            st.markdown(f"**You:** {message['content']}")
+                        else:
+                            st.markdown(f"**EduGenius:** {message['content']}")
+                    
+                    audio_chat_input = st.text_input("Ask about this audio:", 
+                                              placeholder="e.g., Can you summarize the main points from this lecture?")
+                    
+                    if st.button("Send", key="audio_chat_button"):
+                        if audio_chat_input:
+                            # Add to audio chat history
+                            st.session_state.audio_chat_history.append({"role": "user", "content": audio_chat_input})
+                            
+                            # In a real implementation, you would process the audio file here
+                            # For demo purposes, simulate the chat response
+                            chat_response = "I'd be happy to answer questions about the audio content once the audio processing capability is fully implemented. This would typically include details about the content, concepts, and educational aspects of the audio you uploaded."
+                            
+                            st.session_state.audio_chat_history.append({"role": "assistant", "content": chat_response})
+                
+                except Exception as e:
+                    st.error(f"Error analyzing audio: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display audio analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
+
+# Video Learning tab
+with selected_tab[4]:
+    if st.session_state.current_mode != "Video Learning":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Video Learning"
+    
+    st.markdown("### Video Learning Assistant")
+    st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
+    
+    uploaded_video = st.file_uploader("Upload a video file:", type=["mp4", "mov", "avi", "mkv"])
+    
+    if uploaded_video is not None:
+        # Display video player
+        video_bytes = uploaded_video.getvalue()
+        st.video(video_bytes)
+        
+        video_analysis_options = st.multiselect("Select analysis types:", 
+                                      ["Video Transcription", "Content Summary", 
+                                       "Visual Concept Detection", "Key Moments Identification",
+                                       "Generate Quiz from Video", "Educational Value Assessment"])
+        
+        video_focus = st.selectbox("Educational Focus:", 
+                                ["General Analysis", "STEM Concepts", "Humanities Focus", 
+                                 "Language Learning", "Procedural Skills", "Critical Thinking"])
+        
+        if st.button("Analyze Video", use_container_width=True):
+            with st.spinner("Processing video..."):
+                try:
+                    # Create prompt for video analysis
+                    video_prompt = f"I've uploaded a video file named '{uploaded_video.name}'. "
+                    video_prompt += f"Please perform the following analyses: {', '.join(video_analysis_options)}. "
+                    video_prompt += f"Focus on {video_focus} educational aspects. "
+                    video_prompt += "Provide a detailed analysis of the educational value of this video."
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
+                    
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
+                    )
+                    
+                    # In production, you would process the video file here
+                    # For demo purposes, simulate the video analysis
+                    
+                    # Simulate an analysis response
+                    video_analysis = f"""
+# Video Analysis of {uploaded_video.name}
+
+## Content Summary
+This educational video covers [subject] with a focus on [specific topics]. The presenter demonstrates [concepts/skills] through visual examples and clear explanations.
+
+## Visual Concepts Detected
+- Concept 1 (00:15-01:30): Brief explanation
+- Concept 2 (02:45-04:10): Brief explanation
+- Concept 3 (05:20-07:45): Brief explanation
+
+## Key Educational Moments
+1. Introduction to [concept] (00:00-01:15)
+2. Demonstration of [technique/process] (03:20-05:40)
+3. Practice examples and applications (06:30-08:45)
+4. Summary and key takeaways (09:10-end)
+
+## Educational Value
+This video would be valuable for students studying [subject] at the [level] level. It effectively visualizes [complex concepts] that are difficult to convey through text alone.
+
+## Suggested Learning Activities
+- Pre-video introduction to basic terminology
+- Pause-point questions at key moments (times noted above)
+- Post-video assessment focusing on key concepts
+- Group discussion topics based on applications shown
+"""
+                    
+                    st.session_state.chat_history.append({"role": "assistant", "content": video_analysis})
+                    
+                    # Add interactive features
+                    st.markdown("### Video Interactive Learning")
+                    
+                    # Create tabs for different interactive features
+                    interactive_tabs = st.tabs(["Chat About Video", "Generate Timestamps", "Create Quiz"])
+                    
+                    with interactive_tabs[0]:
+                        st.markdown("#### Ask questions about this video")
+                        
+                        # Initialize video chat if not exists
+                        if "video_chat_history" not in st.session_state:
+                            st.session_state.video_chat_history = []
+                        
+                        # Display video chat history
+                        for message in st.session_state.video_chat_history:
+                            if message["role"] == "user":
+                                st.markdown(f"**You:** {message['content']}")
+                            else:
+                                st.markdown(f"**EduGenius:** {message['content']}")
+                            st.markdown("---")
+                        
+                        video_chat_input = st.text_input("Ask about this video:", 
+                                                placeholder="e.g., What are the main points covered in this video?")
+                        
+                        if st.button("Send", key="video_chat_button"):
+                            if video_chat_input:
+                                # Add to video chat history
+                                st.session_state.video_chat_history.append({"role": "user", "content": video_chat_input})
+                                
+                                # In a real implementation, you would process the video query here
+                                # For demo purposes, simulate a response
+                                chat_response = "I'd be happy to answer questions about the video content once the video processing capability is fully implemented. This would typically include information about the visual concepts, explanations, demonstrations, and educational value of the video you uploaded."
+                                
+                                st.session_state.video_chat_history.append({"role": "assistant", "content": chat_response})
+                                st.rerun()
+                    
+                    with interactive_tabs[1]:
+                        st.markdown("#### Generate Educational Timestamps")
+                        st.info("This would identify key moments in the video for educational purposes")
+                        
+                        timestamp_purpose = st.selectbox("Timestamp Purpose:", 
+                                                      ["Key Concepts", "Quiz Questions", "Discussion Points", "Practice Exercises"])
+                        
+                        if st.button("Generate Timestamps", key="timestamp_button"):
+                            # In a real implementation, you would analyze the video for timestamps
+                            # For demo purposes, display sample timestamps
+                            st.markdown("""
+                            ## Generated Educational Timestamps
+                            
+                            | Time | Content | Educational Value |
+                            |------|---------|-------------------|
+                            | 00:15 | Introduction to concept X | Establishes foundational knowledge |
+                            | 01:30 | First example demonstration | Visual application of theory |
+                            | 03:45 | Key insight explanation | Critical understanding point |
+                            | 05:20 | Common misconception addressed | Prevents learning errors |
+                            | 07:10 | Advanced application | Shows real-world relevance |
+                            | 09:30 | Summary of key points | Reinforces learning |
+                            """)
+                    
+                    with interactive_tabs[2]:
+                        st.markdown("#### Generate Quiz Based on Video")
+                        
+                        quiz_question_count = st.slider("Number of Questions:", min_value=3, max_value=15, value=5)
+                        quiz_format = st.selectbox("Quiz Format:", 
+                                                ["Multiple Choice", "True/False", "Mixed Formats", "Short Answer"])
+                        
+                        if st.button("Create Video Quiz", key="video_quiz_button"):
+                            # In a real implementation, you would generate questions based on video content
+                            # For demo purposes, display a sample quiz
+                            st.markdown(f"""
+                            ## Video Content Quiz ({quiz_question_count} Questions)
+                            
+                            1. **Question**: What is the main concept introduced at the beginning of the video?
+                               - A) Concept X
+                               - B) Concept Y
+                               - C) Concept Z
+                               - D) None of the above
+                               
+                            2. **Question**: According to the video, which of the following statements is true?
+                               - A) Statement 1
+                               - B) Statement 2
+                               - C) Statement 3
+                               - D) Statement 4
+                            
+                            3. **Question**: What technique was demonstrated at approximately 03:45 in the video?
+                               - A) Technique A
+                               - B) Technique B
+                               - C) Technique C
+                               - D) Technique D
+                            
+                            4. **Question**: The video suggests that the best application of this concept is in which field?
+                               - A) Field 1
+                               - B) Field 2
+                               - C) Field 3
+                               - D) All of the above
+                            
+                            5. **Question**: What was the concluding point made in the video?
+                               - A) Point A
+                               - B) Point B
+                               - C) Point C
+                               - D) Point D
+                            """)
+                
+                except Exception as e:
+                    st.error(f"Error analyzing video: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display video analysis history
     st.markdown("### Analysis Results")
     for message in st.session_state.chat_history:
         if message["role"] == "user":
