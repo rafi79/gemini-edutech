@@ -234,18 +234,26 @@ with selected_tab[0]:
         # Add multimedia upload option
         upload_option = st.selectbox("", ["Add Media", "Image", "Audio", "Video", "Document"], key="upload_selector")
         
-        if upload_option != "Add Media":
-            if upload_option == "Image":
-                uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
+      if upload_option != "Add Media":
+             if upload_option == "Image":
+              uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
             elif upload_option == "Audio":
-                uploaded_file = st.file_uploader("Upload audio:", type=["mp3", "wav", "m4a"], key="chat_audio_upload")
+              uploaded_file = st.file_uploader("Upload audio:", type=["mp3", "wav", "m4a"], key="chat_audio_upload")
             elif upload_option == "Video":
-                uploaded_file = st.file_uploader("Upload video:", type=["mp4", "mov", "avi"], key="chat_video_upload")
+              uploaded_file = st.file_uploader("Upload video:", type=["mp4", "mov", "avi"], key="chat_video_upload")
             elif upload_option == "Document":
-                uploaded_file = st.file_uploader("Upload document:", type=["pdf", "docx", "txt"], key="chat_doc_upload")
+              uploaded_file = st.file_uploader("Upload document:", type=["pdf", "docx", "txt"], key="chat_doc_upload")
+    
             
             if uploaded_file is not None:
-                  st.success(f"Successfully uploaded: {uploaded_file.name}")
+        # Display information about the uploaded file
+                 st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
+        # You might want to store the file reference in the session state for later use
+                  st.session_state.current_upload = {
+                   "file": uploaded_file,
+                    "type": upload_option,
+                     "name": uploaded_file.name
+                       }
 
     # Processing user input
     if submit_button and user_input:
