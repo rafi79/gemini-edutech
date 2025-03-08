@@ -319,12 +319,12 @@ with selected_tab[0]:
                 st.session_state.tutor_input = ""
                 
                 # Rerun to update the chat display
-                st.experimental_rerun()
+                st.rerun()
             
             except Exception as e:
                 error_message = f"I apologize, but I encountered an error: {str(e)}"
                 st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
-                st.experimental_rerun()
+                st.rerun()
 
 
 # Document Analysis tab
