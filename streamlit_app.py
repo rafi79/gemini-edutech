@@ -4,8 +4,7 @@ from PIL import Image
 import io
 import os
 import tempfile
-from google import generativeai as genai
-from google.genai import types
+import google.generativeai as genai
 
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
@@ -83,10 +82,29 @@ st.markdown("""
 def get_gemini_client():
     # In production, use a more secure way to store API keys
     api_key = "AIzaSyCl9IcFv0Qv72XvrrKyN2inQ8RG_12Xr6s"  # Replace with st.secrets["GEMINI_API_KEY"] in production
-    return genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
+    return genai
 
-client = get_gemini_client()
-model_name = "gemini-2.0-flash"
+# Initialize the client
+get_gemini_client()
+model_name = "gemini-1.5-flash"  # Using a model that actually exists in the API
+
+# Common generation config
+def get_generation_config(temperature=0.7):
+    return {
+        "temperature": temperature,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_output_tokens": 4096,
+    }
+
+# Safety settings
+safety_settings = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
+]
 
 # History management
 if "chat_history" not in st.session_state:
@@ -97,7 +115,7 @@ if "current_mode" not in st.session_state:
 
 # Header
 st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
-st.markdown('<div class="edu-subheader">Powered by Google Gemini 2.0 Flash | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+st.markdown('<div class="edu-subheader">Powered by Google Gemini | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
 
 # App modes
 modes = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator", "Concept Mapper"]
@@ -135,29 +153,17 @@ with selected_tab[0]:
             
             with st.spinner("Generating response..."):
                 try:
-                    # Prepare request for Gemini
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=prompt)]
-                        )
-                    ]
-                    
-                    # Configure generation parameters
-                    generate_config = types.GenerateContentConfig(
-                        temperature=0.7,
-                        top_p=0.95,
-                        top_k=40,
-                        max_output_tokens=4096,
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(),
+                        safety_settings=safety_settings
                     )
                     
-                    # Get response from Gemini
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        config=generate_config
-                    )
+                    # Generate content
+                    response = model.generate_content(prompt)
                     
+                    # Extract response text
                     response_text = response.text
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
                 
@@ -214,29 +220,17 @@ with selected_tab[1]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
                     
-                    # Prepare request for Gemini
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=analysis_prompt)]
-                        )
-                    ]
-                    
-                    # Configure generation parameters
-                    generate_config = types.GenerateContentConfig(
-                        temperature=0.2,
-                        top_p=0.95,
-                        top_k=40,
-                        max_output_tokens=4096,
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
                     )
                     
-                    # Get response from Gemini
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        config=generate_config
-                    )
+                    # Generate content
+                    response = model.generate_content(analysis_prompt)
                     
+                    # Extract response text
                     response_text = response.text
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
                     
@@ -285,52 +279,31 @@ with selected_tab[2]:
         if st.button("Analyze Image", use_container_width=True):
             with st.spinner("Analyzing image..."):
                 try:
-                    # Convert image to base64 for multimodal input
-                    buffered = io.BytesIO()
-                    image.save(buffered, format="JPEG")
-                    img_str = base64.b64encode(buffered.getvalue()).decode()
-                    
                     # Create prompt with image query
                     image_prompt = f"{query_type}: {specific_question}" if specific_question else query_type
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"[Image uploaded] {image_prompt}"})
                     
-                    # In a real implementation, you would send the image to Gemini
-                    # For demo purposes, generate a placeholder response
-                    # Note: Gemini API supports image inputs but requires specific formatting
+                    # Convert image for API
+                    img_byte_arr = io.BytesIO()
+                    image.save(img_byte_arr, format='PNG')
+                    img_byte_arr = img_byte_arr.getvalue()
                     
-                    # Prepare request for Gemini
-                    # This is a simplified example and would need to be adjusted for actual API
-                    image_part = types.Part.from_data(
-                        data=base64.b64decode(img_str),
-                        mime_type="image/jpeg"
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
                     )
                     
-                    text_part = types.Part.from_text(text=image_prompt)
+                    # Prepare multipart content
+                    response = model.generate_content([
+                        image_prompt,
+                        {"mime_type": "image/png", "data": img_byte_arr}
+                    ])
                     
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[text_part, image_part]
-                        )
-                    ]
-                    
-                    # Configure generation parameters
-                    generate_config = types.GenerateContentConfig(
-                        temperature=0.2,
-                        top_p=0.95,
-                        top_k=40,
-                        max_output_tokens=4096,
-                    )
-                    
-                    # Get response from Gemini
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        config=generate_config
-                    )
-                    
+                    # Extract response text
                     response_text = response.text
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
                 
@@ -392,29 +365,17 @@ with selected_tab[3]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Generate a {difficulty} level quiz with {num_questions} questions on {subject}: {topic}"})
                     
-                    # Prepare request for Gemini
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=quiz_prompt)]
-                        )
-                    ]
-                    
-                    # Configure generation parameters
-                    generate_config = types.GenerateContentConfig(
-                        temperature=0.7,
-                        top_p=0.95,
-                        top_k=40,
-                        max_output_tokens=8192,
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.7),
+                        safety_settings=safety_settings
                     )
                     
-                    # Get response from Gemini
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        config=generate_config
-                    )
+                    # Generate content
+                    response = model.generate_content(quiz_prompt)
                     
+                    # Extract response text
                     response_text = response.text
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
                 
@@ -473,29 +434,17 @@ with selected_tab[4]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Generate a {map_style} concept map for '{main_concept}'"})
                     
-                    # Prepare request for Gemini
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=map_prompt)]
-                        )
-                    ]
-                    
-                    # Configure generation parameters
-                    generate_config = types.GenerateContentConfig(
-                        temperature=0.3,
-                        top_p=0.95,
-                        top_k=40,
-                        max_output_tokens=8192,
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.3),
+                        safety_settings=safety_settings
                     )
                     
-                    # Get response from Gemini
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        config=generate_config
-                    )
+                    # Generate content
+                    response = model.generate_content(map_prompt)
                     
+                    # Extract response text
                     response_text = response.text
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
                 
@@ -559,7 +508,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     
     st.markdown("---")
-    st.markdown("### Powered by Google Gemini 2.0")
+    st.markdown("### Powered by Google Gemini")
     st.markdown("* 1M token input context")
     st.markdown("* Multimodal capabilities")
     st.markdown("* Latest knowledge (June 2024)")
