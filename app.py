@@ -278,6 +278,10 @@ def render_audio_analysis():
             """)
 
 def render_video_learning():
+    """Render the Video Learning page with Gemini API integration."""
+    # Import Gemini service functions
+    from gemini_service import analyze_video
+    
     st.markdown("### Video Learning Assistant")
     st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
     
@@ -291,28 +295,90 @@ def render_video_learning():
                                        "Visual Concept Detection", "Key Moments Identification",
                                        "Generate Quiz from Video", "Educational Value Assessment"])
         
+        video_focus = st.selectbox("Educational Focus:", 
+                                ["General Analysis", "STEM Concepts", "Humanities Focus", 
+                                 "Language Learning", "Procedural Skills", "Critical Thinking"])
+        
         if st.button("Analyze Video", use_container_width=True):
-            # Simulate video analysis
-            st.success(f"Video file '{uploaded_video.name}' uploaded successfully!")
-            st.info("This is a simplified demo. In a real implementation, this would analyze your video using the Gemini API.")
-            
-            # Display simulated analysis
-            st.markdown(f"""
-            ## Video Analysis Results
-            
-            ### Content Summary
-            This educational video covers [simulated subject] with a focus on [simulated specific topics]. 
-            
-            ### Key Educational Moments
-            1. Introduction to [concept] (00:00-01:15)
-            2. Demonstration of [technique/process] (03:20-05:40)
-            3. Practice examples and applications (06:30-08:45)
-            4. Summary and key takeaways (09:10-end)
-            
-            ### Educational Value
-            This video would be valuable for students studying [subject] at the [level] level. It effectively visualizes concepts that are difficult to convey through text alone.
-            """)
-
+            with st.spinner("Processing video with AI..."):
+                try:
+                    # Get video data
+                    video_bytes = uploaded_video.getvalue()
+                    
+                    # Call Gemini API to analyze video
+                    analysis_result = analyze_video(
+                        video_data=video_bytes,
+                        analysis_types=video_analysis_options,
+                        focus=video_focus
+                    )
+                    
+                    # Success message
+                    st.success(f"Video file '{uploaded_video.name}' analyzed successfully!")
+                    
+                    # Display analysis results
+                    st.markdown(analysis_result)
+                    
+                    # Store analysis for later reference
+                    if "video_analysis" not in st.session_state:
+                        st.session_state.video_analysis = {}
+                    
+                    st.session_state.video_analysis[uploaded_video.name] = {
+                        "result": analysis_result,
+                        "analysis_types": video_analysis_options,
+                        "focus": video_focus
+                    }
+                    
+                    # Show interactive video chat option
+                    st.markdown("### Ask Questions About This Video")
+                    video_question = st.text_input(
+                        "What would you like to know about this video?",
+                        placeholder="e.g., Can you explain the main concept in more detail?"
+                    )
+                    
+                    if st.button("Ask", key="video_question_button"):
+                        if video_question:
+                            with st.spinner("Generating response..."):
+                                try:
+                                    from gemini_service import generate_text_content
+                                    
+                                    # Create prompt using the analysis and the question
+                                    prompt = f"""
+                                    Based on this video analysis:
+                                    
+                                    {analysis_result}
+                                    
+                                    Answer the following question about the video:
+                                    {video_question}
+                                    
+                                    Provide a helpful, educational response.
+                                    """
+                                    
+                                    # Generate response
+                                    response = generate_text_content(prompt)
+                                    
+                                    # Display response
+                                    st.markdown("### Response")
+                                    st.markdown(response)
+                                    
+                                except Exception as e:
+                                    st.error(f"Error generating response: {str(e)}")
+                
+                except Exception as e:
+                    st.error(f"Error analyzing video: {str(e)}")
+                    st.markdown(f"""
+                    ## Analysis Error
+                    
+                    I'm sorry, but I encountered an error analyzing your video:
+                    
+                    {str(e)}
+                    
+                    This might be due to:
+                    - Video format incompatibility
+                    - Video file size limitations
+                    - Temporary API issues
+                    
+                    Please try again with a different video file or try later.
+                    """)
 def render_quiz_generator():
     st.markdown("### Educational Quiz Generator")
     st.markdown("Create customized quizzes for any subject or topic")
