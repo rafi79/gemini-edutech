@@ -98,7 +98,7 @@ def show_welcome_screen():
     # Button to dismiss welcome screen
     if st.button("Get Started", key="welcome_dismiss"):
         st.session_state.first_visit = False
-        st.experimental_rerun()
+        st.rerun()  # Changed from experimental_rerun() to rerun()
 
 # Function to render chat messages
 def render_chat_message(message):
@@ -162,7 +162,7 @@ def render_learning_assistant():
         st.session_state.tutor_input = ""
         
         # Rerun to update the chat display
-        st.experimental_rerun()
+        st.rerun()  # Changed from experimental_rerun() to rerun()
 
 def render_document_analysis():
     st.markdown("### AI-Powered Document Analysis")
