@@ -4,11 +4,7 @@ from PIL import Image
 import io
 import os
 import tempfile
-from google import generativeai
-import google.generativeai as genai
 import PyPDF2
-from groq import Groq
-
 
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
@@ -82,20 +78,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
 
-# Initialize Gemini client
+# Initialize API clients conditionally
+use_groq = False
+use_gemini = False
+
 try:
+    from google import generativeai
+    import google.generativeai as genai
     genai.configure(api_key=GEMINI_API_KEY)
+    use_gemini = True
 except Exception as e:
-    st.error(f"Failed to initialize Gemini API: {str(e)}")
+    st.warning("Google Generative AI module not available. Some features will be limited.")
 
-# Initialize Groq client
 try:
-    groq_client = Groq(api_key=GROQ_API_KEY)
+    from groq import Groq
+    groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY", "YOUR_GROQ_API_KEY"))
+    use_groq = True
 except Exception as e:
-    st.error(f"Failed to initialize Groq API: {str(e)}")
+    st.warning("Groq API module not available. Some features will be limited.")
 
 # Function to get the appropriate model based on task
 def get_model_name(task_type="chat"):
@@ -107,6 +109,9 @@ def get_model_name(task_type="chat"):
 # Function to generate content with Gemini API
 def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, temperature=0.7):
     """Generate content with error handling"""
+    if not use_gemini:
+        return "Gemini API is not available. Please install the google-generativeai package and set your API key."
+    
     try:
         # Generation config
         generation_config = {
@@ -153,6 +158,9 @@ def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, tem
 # Function to generate content with Groq API (specialized for document analysis)
 def generate_content_with_groq(prompt, temperature=0.6):
     """Generate content using Groq API with streaming for document analysis"""
+    if not use_groq:
+        return "Groq API is not available. Please install the groq package and set your API key."
+    
     try:
         full_response = ""
         
@@ -181,6 +189,11 @@ def generate_content_with_groq(prompt, temperature=0.6):
     except Exception as e:
         return f"Sorry, I encountered an error with Groq API: {str(e)}"
 
+# Fallback text generation for when APIs are not available
+def generate_text_fallback(prompt):
+    """Provide a basic response when APIs are not available"""
+    return f"I would respond to: '{prompt}' but API access is currently unavailable. Please ensure you have installed the required packages and provided API keys."
+
 # Initialize session state variables
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -193,7 +206,7 @@ if "first_visit" not in st.session_state:
 
 # Header
 st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
-st.markdown('<div class="edu-subheader">Powered by Google Gemini & Groq | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+st.markdown('<div class="edu-subheader">Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
 
 # Display welcome screen on first visit
 if st.session_state.first_visit:
@@ -223,6 +236,41 @@ if st.session_state.first_visit:
     if st.button("Get Started", key="welcome_dismiss"):
         st.session_state.first_visit = False
         st.rerun()
+
+# Display API status
+with st.sidebar:
+    st.header("API Status")
+    
+    if use_gemini:
+        st.success("✅ Google Gemini API: Connected")
+    else:
+        st.error("❌ Google Gemini API: Not Available")
+        st.info("To use Gemini features, install the google-generativeai package and set your API key.")
+        
+    if use_groq:
+        st.success("✅ Groq API: Connected")
+    else:
+        st.error("❌ Groq API: Not Available")
+        st.info("To use Groq features, install the groq package and set your API key.")
+    
+    # Add setup instructions
+    with st.expander("Setup Instructions"):
+        st.markdown("""
+        ### Setting Up API Access
+        
+        1. **Install Required Packages**:
+           ```
+           pip install streamlit Pillow PyPDF2 google-generativeai groq
+           ```
+           
+        2. **Set API Keys as Environment Variables**:
+           - For Gemini: `GEMINI_API_KEY`
+           - For Groq: `GROQ_API_KEY`
+           
+        3. **Or update the default values in the code**:
+           - Replace 'YOUR_GEMINI_API_KEY' with your actual Gemini API key
+           - Replace 'YOUR_GROQ_API_KEY' with your actual Groq API key
+        """)
 
 # App modes - Simplified for compatibility
 modes = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator"]
@@ -330,16 +378,20 @@ with selected_tab[0]:
                     media_type = st.session_state.current_upload["type"].lower()
                     prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
                 
-                # Select appropriate model
-                model_name = get_model_name("image" if has_multimedia else "chat")
-                
-                # Generate response
-                response_text = generate_content(
-                    prompt=prompt,
-                    model_name=model_name,
-                    image_data=media_bytes if has_multimedia else None,
-                    temperature=0.7
-                )
+                if use_gemini:
+                    # Select appropriate model
+                    model_name = get_model_name("image" if has_multimedia else "chat")
+                    
+                    # Generate response
+                    response_text = generate_content(
+                        prompt=prompt,
+                        model_name=model_name,
+                        image_data=media_bytes if has_multimedia else None,
+                        temperature=0.7
+                    )
+                else:
+                    # Use fallback
+                    response_text = generate_text_fallback(prompt)
                 
                 # Add AI response to chat
                 st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
@@ -367,6 +419,13 @@ with selected_tab[1]:
     # Add API selection for document analysis
     api_choice = st.radio("Select AI model for document analysis:", 
                           ["Groq (Qwen-2.5-32B) - Better for documents", "Google Gemini"])
+    
+    # Disable unavailable options
+    if api_choice.startswith("Groq") and not use_groq:
+        st.warning("Groq API is not available. Please install the groq package and provide your API key.")
+    
+    if api_choice.startswith("Google") and not use_gemini:
+        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
     
     uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
     
@@ -434,20 +493,23 @@ with selected_tab[1]:
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
                     
                     # Generate response based on selected API
-                    if api_choice.startswith("Groq"):
+                    if api_choice.startswith("Groq") and use_groq:
                         # Use Groq for document analysis
                         with st.status("Processing with Groq's Qwen model..."):
                             response_text = generate_content_with_groq(
                                 prompt=analysis_prompt,
                                 temperature=0.6
                             )
-                    else:
+                    elif use_gemini:
                         # Use Gemini for document analysis
                         response_text = generate_content(
                             prompt=analysis_prompt,
                             model_name=get_model_name("chat"),
                             temperature=0.3
                         )
+                    else:
+                        # Use fallback
+                        response_text = generate_text_fallback(analysis_prompt)
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
@@ -474,6 +536,9 @@ with selected_tab[2]:
     st.markdown("### Visual Learning Assistant")
     st.markdown("Upload images of diagrams, problems, or visual concepts for AI explanation")
     
+    if not use_gemini:
+        st.warning("Visual Learning requires the Google Gemini API. Please install the google-generativeai package and provide your API key.")
+    
     uploaded_image = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"])
     
     if uploaded_image is not None:
@@ -499,18 +564,22 @@ with selected_tab[2]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"[Image uploaded] {image_prompt}"})
                     
-                    # Convert image for API
-                    img_byte_arr = io.BytesIO()
-                    image.save(img_byte_arr, format='PNG')
-                    img_byte_arr = img_byte_arr.getvalue()
-                    
-                    # Generate response
-                    response_text = generate_content(
-                        prompt=image_prompt,
-                        model_name=get_model_name("image"),
-                        image_data=img_byte_arr,
-                        temperature=0.3
-                    )
+                    if use_gemini:
+                        # Convert image for API
+                        img_byte_arr = io.BytesIO()
+                        image.save(img_byte_arr, format='PNG')
+                        img_byte_arr = img_byte_arr.getvalue()
+                        
+                        # Generate response
+                        response_text = generate_content(
+                            prompt=image_prompt,
+                            model_name=get_model_name("image"),
+                            image_data=img_byte_arr,
+                            temperature=0.3
+                        )
+                    else:
+                        # Use fallback
+                        response_text = generate_text_fallback(image_prompt)
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
@@ -536,6 +605,9 @@ with selected_tab[3]:
     
     st.markdown("### AI Quiz Generator")
     st.markdown("Generate customized quizzes and assessments for any subject or learning level")
+    
+    if not (use_gemini or use_groq):
+        st.warning("Quiz generation requires either the Google Gemini API or Groq API. Please install the required packages and provide API keys.")
     
     quiz_subject = st.text_input("Quiz Subject or Topic:", placeholder="e.g., World History, Algebra, Biology")
     
@@ -583,12 +655,20 @@ with selected_tab[3]:
                     if include_answers:
                         quiz_prompt += " Include an answer key with explanations."
                     
-                    # Generate quiz
-                    quiz_text = generate_content(
-                        prompt=quiz_prompt,
-                        model_name=get_model_name("chat"),
-                        temperature=0.7
-                    )
+                    # Generate quiz - try Gemini first, then Groq, then fallback
+                    if use_gemini:
+                        quiz_text = generate_content(
+                            prompt=quiz_prompt,
+                            model_name=get_model_name("chat"),
+                            temperature=0.7
+                        )
+                    elif use_groq:
+                        quiz_text = generate_content_with_groq(
+                            prompt=quiz_prompt,
+                            temperature=0.7
+                        )
+                    else:
+                        quiz_text = generate_text_fallback(quiz_prompt)
                     
                     # Display the generated quiz in a formatted box
                     st.markdown("## Generated Quiz")
@@ -601,15 +681,3 @@ with selected_tab[3]:
                         file_name=f"{quiz_subject.replace(' ', '_')}_quiz.txt",
                         mime="text/plain"
                     )
-                
-                except Exception as e:
-                    st.error(f"Error generating quiz: {str(e)}")
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; padding: 10px; color: #666;">
-    <p>EduGenius - Powered by Google Gemini & Groq | &copy; 2025</p>
-    <p style="font-size: 0.8rem;">Disclaimer: This is a demo application. AI-generated content should be reviewed by educators before use in formal educational settings.</p>
-</div>
-""", unsafe_allow_html=True)
