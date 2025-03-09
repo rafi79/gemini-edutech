@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+import google.generativeai as genai
 
 # Set page configuration
 st.set_page_config(
@@ -70,6 +72,111 @@ if "tutor_messages" not in st.session_state:
     st.session_state.tutor_messages = [
         {"role": "assistant", "content": "👋 Hi there! I'm your AI learning companion. What would you like to learn about today?"}
     ]
+
+# Gemini API functions integrated directly into app.py
+def initialize_genai():
+    """Initialize the Gemini API client with the API key."""
+    # Get API key from environment or use the provided one
+    api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
+    genai.configure(api_key=api_key)
+    return True
+
+def generate_text_content(prompt, temperature=0.7, model_name=None):
+    """Generate content from a text prompt."""
+    # Initialize API
+    initialize_genai()
+    
+    # Set default model if not provided
+    if not model_name:
+        model_name = "gemini-2.0-flash"
+    
+    # Create generation config
+    generation_config = {
+        "temperature": temperature,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_output_tokens": 8192,
+    }
+    
+    try:
+        # Create the model
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config
+        )
+        
+        # Generate content
+        response = model.generate_content(prompt)
+        return response.text
+        
+    except Exception as e:
+        st.error(f"Error generating content: {str(e)}")
+        return f"I apologize, but I encountered an error: {str(e)}"
+
+def generate_multimodal_content(prompt, media_data, media_type="image/jpeg", temperature=0.7):
+    """Generate content from a text prompt and media data."""
+    # Initialize API
+    initialize_genai()
+    
+    # Use gemini-1.5-flash for multimedia content
+    model_name = "gemini-1.5-flash"
+    
+    # Create generation config
+    generation_config = {
+        "temperature": temperature,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_output_tokens": 8192,
+    }
+    
+    try:
+        # Create the model
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config
+        )
+        
+        # Generate content with media
+        response = model.generate_content([
+            prompt,
+            {"mime_type": media_type, "data": media_data}
+        ])
+        return response.text
+        
+    except Exception as e:
+        st.error(f"Error generating content from {media_type}: {str(e)}")
+        return f"I apologize, but I encountered an error processing your media: {str(e)}"
+
+def analyze_video(video_data, analysis_types, focus="General Analysis"):
+    """Analyze video content."""
+    # Initialize API
+    initialize_genai()
+    
+    # Create prompt for video analysis
+    analysis_prompt = f"""
+    You are EduGenius, an AI video learning assistant.
+    
+    Please analyze this educational video and provide insights on the following aspects:
+    {', '.join(analysis_types)}
+    
+    Focus on {focus} educational aspects.
+    
+    Provide a detailed analysis organized with markdown headings, including:
+    1. Content summary
+    2. Key educational moments with timestamps
+    3. Educational value assessment
+    4. Suggested learning activities
+    
+    Format your response in clear, organized markdown.
+    """
+    
+    # Use multimodal content generation for video
+    return generate_multimodal_content(
+        prompt=analysis_prompt,
+        media_data=video_data,
+        media_type="video/mp4",
+        temperature=0.2  # Lower temperature for more factual analysis
+    )
 
 # Functions for displaying welcome screen
 def show_welcome_screen():
@@ -152,17 +259,27 @@ def render_learning_assistant():
         # Add user message to chat
         st.session_state.tutor_messages.append({"role": "user", "content": user_input})
         
-        # Simulate AI response - in a real implementation, this would call the Gemini API
-        simulated_response = f"This is a simulated response to your question about: {user_input}\n\nIn a real implementation, this would use the Gemini API to generate a proper educational response based on your learning level ({learning_level}) and preferred learning style ({learning_style})."
+        # Create AI prompt
+        prompt = f"""You are EduGenius, an educational AI tutor.
+Adapt your explanation for {learning_level} level students.
+Use a {learning_style} learning style in your response.
+
+Student question: {user_input}
+
+Provide a clear, helpful, and engaging educational response."""
         
-        # Add AI response to chat
-        st.session_state.tutor_messages.append({"role": "assistant", "content": simulated_response})
-        
-        # Clear the input area
-        st.session_state.tutor_input = ""
-        
-        # Rerun to update the chat display
-        st.rerun()  # Changed from experimental_rerun() to rerun()
+        with st.spinner("Generating response..."):
+            # Generate AI response using Gemini
+            ai_response = generate_text_content(prompt)
+            
+            # Add AI response to chat
+            st.session_state.tutor_messages.append({"role": "assistant", "content": ai_response})
+            
+            # Clear the input area
+            st.session_state.tutor_input = ""
+            
+            # Rerun to update the chat display
+            st.rerun()
 
 def render_document_analysis():
     st.markdown("### AI-Powered Document Analysis")
@@ -219,25 +336,39 @@ def render_visual_learning():
                                          placeholder="e.g., What does this diagram represent?")
         
         if st.button("Analyze Image", use_container_width=True, key="main_analysis"):
-            # Simulate image analysis
-            st.success("Image uploaded successfully!")
-            st.info("This is a simplified demo. In a real implementation, this would analyze your image using the Gemini API.")
-            
-            # Display simulated analysis
-            st.markdown(f"""
-            ## Image Analysis Results
-            
-            ### Concept Explanation
-            This is a simulated explanation of the concept shown in your image. In a real implementation, this would provide an actual analysis based on your query type: "{query_type}".
-            
-            ### Elements Identified
-            - Simulated Element 1: Description
-            - Simulated Element 2: Description
-            - Simulated Element 3: Description
-            
-            ### Educational Value
-            This image illustrates important concepts related to [simulated subject area]. It would be valuable for teaching [simulated educational purpose].
-            """)
+            with st.spinner("Analyzing image with AI..."):
+                try:
+                    # Get image data
+                    image_bytes = uploaded_image.getvalue()
+                    
+                    # Create prompt based on query type
+                    if query_type == "Explain the concept shown":
+                        prompt = "Please explain the educational concept shown in this image. Identify key elements and their relationships."
+                    elif query_type == "Identify elements":
+                        prompt = "Please identify and label all significant elements in this image. Explain their educational relevance."
+                    elif query_type == "Solve the problem shown":
+                        prompt = "Please solve the problem shown in this image. Explain your solution step by step."
+                    elif query_type == "Create a related exercise":
+                        prompt = "Based on this image, please create a related educational exercise that would reinforce the concepts shown."
+                    
+                    # Add specific question if provided
+                    if specific_question:
+                        prompt += f"\n\nSpecific question: {specific_question}"
+                    
+                    # Call Gemini API to analyze image
+                    analysis_result = generate_multimodal_content(
+                        prompt=prompt,
+                        media_data=image_bytes,
+                        media_type="image/jpeg",
+                        temperature=0.2
+                    )
+                    
+                    # Display analysis results
+                    st.markdown("## Image Analysis Results")
+                    st.markdown(analysis_result)
+                    
+                except Exception as e:
+                    st.error(f"Error analyzing image: {str(e)}")
 
 def render_audio_analysis():
     st.markdown("### Audio Learning Assistant")
@@ -279,9 +410,6 @@ def render_audio_analysis():
 
 def render_video_learning():
     """Render the Video Learning page with Gemini API integration."""
-    # Import Gemini service functions
-    from gemini_service import analyze_video
-    
     st.markdown("### Video Learning Assistant")
     st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
     
@@ -291,9 +419,9 @@ def render_video_learning():
         st.video(uploaded_video)
         
         video_analysis_options = st.multiselect("Select analysis types:", 
-                                      ["Video Transcription", "Content Summary", 
-                                       "Visual Concept Detection", "Key Moments Identification",
-                                       "Generate Quiz from Video", "Educational Value Assessment"])
+                                    ["Video Transcription", "Content Summary", 
+                                     "Visual Concept Detection", "Key Moments Identification",
+                                     "Generate Quiz from Video", "Educational Value Assessment"])
         
         video_focus = st.selectbox("Educational Focus:", 
                                 ["General Analysis", "STEM Concepts", "Humanities Focus", 
@@ -305,7 +433,7 @@ def render_video_learning():
                     # Get video data
                     video_bytes = uploaded_video.getvalue()
                     
-                    # Call Gemini API to analyze video
+                    # Call analyze_video function to analyze video
                     analysis_result = analyze_video(
                         video_data=video_bytes,
                         analysis_types=video_analysis_options,
@@ -339,8 +467,6 @@ def render_video_learning():
                         if video_question:
                             with st.spinner("Generating response..."):
                                 try:
-                                    from gemini_service import generate_text_content
-                                    
                                     # Create prompt using the analysis and the question
                                     prompt = f"""
                                     Based on this video analysis:
@@ -379,6 +505,7 @@ def render_video_learning():
                     
                     Please try again with a different video file or try later.
                     """)
+
 def render_quiz_generator():
     st.markdown("### Educational Quiz Generator")
     st.markdown("Create customized quizzes for any subject or topic")
@@ -400,34 +527,26 @@ def render_quiz_generator():
         if not quiz_topic:
             st.warning("Please enter a quiz topic.")
         else:
-            # Simulate quiz generation
-            st.success(f"Generating {difficulty} level quiz on {quiz_topic}!")
-            st.info("This is a simplified demo. In a real implementation, this would generate a quiz using the Gemini API.")
-            
-            # Display simulated quiz
-            st.markdown(f"""
-            ## {quiz_topic} Quiz ({difficulty} Level)
-            
-            1. **Question**: Simulated question 1 about {quiz_topic}?
-               - A) Simulated answer A
-               - B) Simulated answer B
-               - C) Simulated answer C
-               - D) Simulated answer D
-               
-            2. **Question**: Simulated question 2 about {quiz_topic}?
-               - A) Simulated answer A
-               - B) Simulated answer B
-               - C) Simulated answer C
-               - D) Simulated answer D
-            
-            3. **Question**: Simulated question 3 about {quiz_topic}?
-               - A) Simulated answer A
-               - B) Simulated answer B
-               - C) Simulated answer C
-               - D) Simulated answer D
-            
-            *Note: In a real implementation, this would generate {question_count} questions in {question_format} format.*
-            """)
+            with st.spinner(f"Generating {difficulty} level quiz on {quiz_topic}..."):
+                try:
+                    # Create prompt for quiz generation
+                    prompt = f"""
+                    Generate a {difficulty} level educational quiz on {quiz_topic}.
+                    
+                    Create {question_count} questions in {question_format} format.
+                    Include answers and brief explanations for each question.
+                    Ensure questions assess different cognitive levels, from recall to application and analysis.
+                    Format your response in clear, organized markdown.
+                    """
+                    
+                    # Generate quiz content
+                    quiz_content = generate_text_content(prompt, temperature=0.3)
+                    
+                    # Display quiz
+                    st.markdown(quiz_content)
+                    
+                except Exception as e:
+                    st.error(f"Error generating quiz: {str(e)}")
 
 def render_concept_mapper():
     st.markdown("### Educational Concept Mapper")
