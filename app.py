@@ -1,19 +1,4 @@
-# Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; padding: 10px; color: #666;">
-        <p>EduGenius - Your AI Learning Companion | &copy; 2025</p>
-        <p style="font-size: 0.8rem;">Disclaimer: This is a demo application. AI-generated content should be reviewed by educators before use in formal educational settings.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-except Exception as e:
-    st.error(f"Application Error: {str(e)}")
-    st.info("If you're seeing this error, please make sure you have the required packages installed:\n\n`pip install streamlit Pillow PyPDF2 google-generativeai groq`")#!/usr/bin/env python3
-# EduGenius - AI Learning Assistant
-
-try:
-    import streamlit as st
+ import streamlit as st
     import base64
     from PIL import Image
     import io
