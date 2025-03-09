@@ -389,9 +389,6 @@ with selected_tab[0]:
                 # Add AI response to chat
                 st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
                 
-                # Clear the session state instead of directly modifying the widget
-                # This avoids the error
-                
                 # Use rerun to update display and clear the input
                 st.rerun()
             
@@ -452,7 +449,7 @@ with selected_tab[1]:
                         if uploaded_file.type == "text/plain":
                             # For text files
                             file_content = file_bytes.decode('utf-8')
-                        el                        if uploaded_file.name.lower().endswith('.pdf'):
+                        elif uploaded_file.name.lower().endswith('.pdf'):
                             # For PDF files
                             if PYPDF2_AVAILABLE:
                                 try:
