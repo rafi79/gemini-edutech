@@ -78,7 +78,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 
 # Initialize API clients conditionally
 use_groq = False
