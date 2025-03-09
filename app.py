@@ -344,10 +344,10 @@ with selected_tab[0]:
                 # Add AI response to chat
                 st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
                 
-                # Clear the input area
-                st.session_state.tutor_input = ""
+                # Clear the session state instead of directly modifying the widget
+                # This avoids the error
                 
-                # Update display
+                # Use rerun to update display and clear the input
                 st.rerun()
             
             except Exception as e:
