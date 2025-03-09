@@ -7,6 +7,7 @@ import tempfile
 from google import generativeai
 import google.generativeai as genai
 import PyPDF2
+from groq import Groq
 
 
 # Set page configuration
@@ -80,14 +81,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# GEMINI API Configuration
-API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
+# API Configuration
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 
 # Initialize Gemini client
 try:
-    genai.configure(api_key=API_KEY)
+    genai.configure(api_key=GEMINI_API_KEY)
 except Exception as e:
     st.error(f"Failed to initialize Gemini API: {str(e)}")
+
+# Initialize Groq client
+try:
+    groq_client = Groq(api_key=GROQ_API_KEY)
+except Exception as e:
+    st.error(f"Failed to initialize Groq API: {str(e)}")
 
 # Function to get the appropriate model based on task
 def get_model_name(task_type="chat"):
@@ -96,7 +104,7 @@ def get_model_name(task_type="chat"):
     else:
         return "gemini-2.0-flash"  # For chat and reasoning
 
-# Function to generate content with robust error handling
+# Function to generate content with Gemini API
 def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, temperature=0.7):
     """Generate content with error handling"""
     try:
@@ -140,7 +148,38 @@ def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, tem
         return response.text
     
     except Exception as e:
-        return f"Sorry, I encountered an error: {str(e)}"
+        return f"Sorry, I encountered an error with Gemini API: {str(e)}"
+
+# Function to generate content with Groq API (specialized for document analysis)
+def generate_content_with_groq(prompt, temperature=0.6):
+    """Generate content using Groq API with streaming for document analysis"""
+    try:
+        full_response = ""
+        
+        # Create completion with streaming
+        completion = groq_client.chat.completions.create(
+            model="qwen-2.5-32b",  # Using Qwen model which is good for document analysis
+            messages=[
+                {"role": "system", "content": "You are an expert document analyzer and educator."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=temperature,
+            max_tokens=4096,
+            top_p=0.95,
+            stream=True,
+            stop=None,
+        )
+        
+        # Process streaming response
+        for chunk in completion:
+            if chunk.choices and chunk.choices[0].delta.content:
+                chunk_content = chunk.choices[0].delta.content
+                full_response += chunk_content
+                
+        return full_response
+    
+    except Exception as e:
+        return f"Sorry, I encountered an error with Groq API: {str(e)}"
 
 # Initialize session state variables
 if "chat_history" not in st.session_state:
@@ -154,7 +193,7 @@ if "first_visit" not in st.session_state:
 
 # Header
 st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
-st.markdown('<div class="edu-subheader">Powered by Google Gemini | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+st.markdown('<div class="edu-subheader">Powered by Google Gemini & Groq | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
 
 # Display welcome screen on first visit
 if st.session_state.first_visit:
@@ -325,6 +364,10 @@ with selected_tab[1]:
     st.markdown("### AI-Powered Document Analysis")
     st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
     
+    # Add API selection for document analysis
+    api_choice = st.radio("Select AI model for document analysis:", 
+                          ["Groq (Qwen-2.5-32B) - Better for documents", "Google Gemini"])
+    
     uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
     
     # Add manual text input option as a fallback
@@ -360,7 +403,14 @@ with selected_tab[1]:
                             try:
                                 pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
                                 for page in pdf_reader.pages:
-                                    file_content += page.extract_text() + "\n"
+                                    extracted_text = page.extract_text()
+                                    if extracted_text:  # Only add if text was actually extracted
+                                        file_content += extracted_text + "\n"
+                                
+                                if not file_content.strip():
+                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
+                                    api_choice = "Groq (Qwen-2.5-32B) - Better for documents"
+                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
                             except Exception as pdf_error:
                                 st.error(f"Error extracting PDF content: {str(pdf_error)}")
                                 file_content = f"[Unable to extract content from {uploaded_file.name}]"
@@ -371,8 +421,8 @@ with selected_tab[1]:
                         # Use the pasted text instead
                         file_content = manual_text_input
                     
-                    # If the file content is large, trim it
-                    if len(file_content) > 10000:
+                    # If the file content is large, trim it only if using Gemini (Groq can handle larger contexts)
+                    if api_choice == "Google Gemini" and len(file_content) > 10000:
                         file_content = file_content[:10000] + "... [content truncated due to size]"
                     
                     # Create prompt for document analysis
@@ -383,12 +433,21 @@ with selected_tab[1]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
                     
-                    # Generate response
-                    response_text = generate_content(
-                        prompt=analysis_prompt,
-                        model_name=get_model_name("chat"),
-                        temperature=0.3
-                    )
+                    # Generate response based on selected API
+                    if api_choice.startswith("Groq"):
+                        # Use Groq for document analysis
+                        with st.status("Processing with Groq's Qwen model..."):
+                            response_text = generate_content_with_groq(
+                                prompt=analysis_prompt,
+                                temperature=0.6
+                            )
+                    else:
+                        # Use Gemini for document analysis
+                        response_text = generate_content(
+                            prompt=analysis_prompt,
+                            model_name=get_model_name("chat"),
+                            temperature=0.3
+                        )
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
@@ -550,7 +609,7 @@ with selected_tab[3]:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; padding: 10px; color: #666;">
-    <p>EduGenius - Powered by Google Gemini | &copy; 2025</p>
+    <p>EduGenius - Powered by Google Gemini & Groq | &copy; 2025</p>
     <p style="font-size: 0.8rem;">Disclaimer: This is a demo application. AI-generated content should be reviewed by educators before use in formal educational settings.</p>
 </div>
 """, unsafe_allow_html=True)
