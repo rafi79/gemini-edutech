@@ -5,7 +5,7 @@ import io
 import os
 import tempfile
 import PyPDF2
-
+from groq import Groq
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
                    page_icon="🧠", 
