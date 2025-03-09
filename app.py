@@ -1,4 +1,7 @@
-import streamlit as st
+# Button to dismiss welcome screen - placed outside the markdown
+    if st.button("Get Started", key="welcome_dismiss"):
+        st.session_state.first_visit = False
+        st.rerun()import streamlit as st
 import base64
 from PIL import Image
 import io
@@ -79,7 +82,7 @@ st.markdown("""
 
 # API Configuration
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 
 # Initialize API clients conditionally
 use_groq = False
@@ -163,6 +166,10 @@ def generate_content_with_groq(prompt, temperature=0.6):
         return "Groq API is not available. Please install the groq package and set your API key."
     
     try:
+        # Validate API key format first
+        if not GROQ_API_KEY or len(GROQ_API_KEY) < 10:
+            return "Invalid Groq API key. Please provide a valid API key."
+            
         full_response = ""
         
         # Create completion with streaming
@@ -232,11 +239,6 @@ if st.session_state.first_visit:
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Button to dismiss welcome screen
-    if st.button("Get Started", key="welcome_dismiss"):
-        st.session_state.first_visit = False
-        st.rerun()
 
 # Display API status
 with st.sidebar:
@@ -397,8 +399,8 @@ with selected_tab[0]:
                 # Add AI response to chat
                 st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
                 
-                # Clear the input area
-                st.session_state.tutor_input = ""
+                # Clear the input area (using proper Streamlit session state method)
+                st.session_state["tutor_input"] = ""
                 
                 # Update display
                 st.rerun()
@@ -495,12 +497,25 @@ with selected_tab[1]:
                     
                     # Generate response based on selected API
                     if api_choice.startswith("Groq") and use_groq:
-                        # Use Groq for document analysis
-                        with st.status("Processing with Groq's Qwen model..."):
-                            response_text = generate_content_with_groq(
-                                prompt=analysis_prompt,
-                                temperature=0.6
-                            )
+                        try:
+                            # Use Groq for document analysis
+                            with st.status("Processing with Groq's Qwen model..."):
+                                response_text = generate_content_with_groq(
+                                    prompt=analysis_prompt,
+                                    temperature=0.6
+                                )
+                        except Exception as e:
+                            st.error(f"Groq API error: {str(e)}")
+                            # Fallback to Gemini if available
+                            if use_gemini:
+                                st.info("Falling back to Gemini API...")
+                                response_text = generate_content(
+                                    prompt=analysis_prompt,
+                                    model_name=get_model_name("chat"),
+                                    temperature=0.3
+                                )
+                            else:
+                                response_text = f"Error with Groq API: {str(e)}. Please check your API key or try again later."
                     elif use_gemini:
                         # Use Gemini for document analysis
                         response_text = generate_content(
