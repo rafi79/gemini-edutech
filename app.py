@@ -105,9 +105,9 @@ gemini_client = initialize_gemini_clients()
 # Function to get the appropriate model based on task
 def get_model_name(task_type="chat"):
     if task_type in ["image", "audio", "video"]:
-        return "gemini-1.5-flash"  # For multimodal tasks
+        return "gemini-2.0-flash"  # For multimodal tasks
     else:
-        return "gemini-2.0-flash"  # For chat and reasoning
+        return "gemini-2.0-flash-exp"  # For chat and reasoning
 
 # Streamlined function to generate content with fallbacks
 def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, temperature=0.7):
