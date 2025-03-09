@@ -1,7 +1,4 @@
-# Button to dismiss welcome screen - placed outside the markdown
-    if st.button("Get Started", key="welcome_dismiss"):
-        st.session_state.first_visit = False
-        st.rerun()import streamlit as st
+
 import base64
 from PIL import Image
 import io
