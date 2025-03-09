@@ -1,4 +1,8 @@
- import streamlit as st
+#!/usr/bin/env python3
+# EduGenius - AI Learning Assistant
+
+try:
+    import streamlit as st
     import base64
     from PIL import Image
     import io
@@ -327,6 +331,82 @@
                                             ["Visual", "Textual", "Interactive", "Example-based", "Socratic"])
             
             with col2:
+            question_count = st.slider("Number of Questions:", min_value=3, max_value=20, value=10)
+            
+            include_answers = st.checkbox("Include Answer Key", value=True)
+        
+        # Additional options in an expander
+        with st.expander("Advanced Options"):
+            specific_topics = st.text_area("Focus on specific subtopics or concepts:", 
+                                          placeholder="e.g., French Revolution, Quadratic Equations, Cell Biology")
+            
+            learning_objectives = st.text_area("Learning objectives to assess:", 
+                                              placeholder="e.g., Understand causes and effects, Apply formulas to solve problems")
+            
+            time_limit = st.slider("Recommended Time Limit (minutes):", min_value=5, max_value=120, value=30)
+        
+        if st.button("Generate Quiz", use_container_width=True):
+            if not quiz_subject:
+                st.warning("Please enter a quiz subject")
+            else:
+                with st.spinner("Generating your quiz..."):
+                    try:
+                        # Create prompt for quiz
+                        quiz_prompt = f"Generate a {quiz_level} level quiz on {quiz_subject} with {question_count} {quiz_type} questions."
+                        
+                        if specific_topics:
+                            quiz_prompt += f" Focus on these specific topics: {specific_topics}."
+                        
+                        if learning_objectives:
+                            quiz_prompt += f" The quiz should assess these learning objectives: {learning_objectives}."
+                        
+                        quiz_prompt += f" The quiz should take approximately {time_limit} minutes to complete."
+                        
+                        if include_answers:
+                            quiz_prompt += " Include an answer key with explanations."
+                        
+                        # Generate quiz - try Gemini first, then Groq, then fallback
+                        if use_gemini:
+                            quiz_text = generate_content(
+                                prompt=quiz_prompt,
+                                model_name=get_model_name("chat"),
+                                temperature=0.7
+                            )
+                        elif use_groq:
+                            quiz_text = generate_content_with_groq(
+                                prompt=quiz_prompt,
+                                temperature=0.7
+                            )
+                        else:
+                            quiz_text = generate_text_fallback(quiz_prompt)
+                        
+                        # Display the generated quiz in a formatted box
+                        st.markdown("## Generated Quiz")
+                        st.markdown(f"<div style='background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>{quiz_text}</div>", unsafe_allow_html=True)
+                        
+                        # Add download options
+                        st.download_button(
+                            label="Download Quiz as Text",
+                            data=quiz_text,
+                            file_name=f"{quiz_subject.replace(' ', '_')}_quiz.txt",
+                            mime="text/plain"
+                        )
+                    
+                    except Exception as e:
+                        st.error(f"Error generating quiz: {str(e)}")
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; padding: 10px; color: #666;">
+        <p>EduGenius - Your AI Learning Companion | &copy; 2025</p>
+        <p style="font-size: 0.8rem;">Disclaimer: This is a demo application. AI-generated content should be reviewed by educators before use in formal educational settings.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+except Exception as e:
+    st.error(f"Application Error: {str(e)}")
+    st.info("If you're seeing this error, please make sure you have the required packages installed:\n\n`pip install streamlit Pillow PyPDF2 google-generativeai groq`"):
                 memory_option = st.checkbox("Enable Chat Memory", value=True, 
                                          help="When enabled, the AI will remember previous exchanges in this conversation")
         
@@ -664,67 +744,4 @@
             quiz_type = st.selectbox("Question Type:", 
                                    ["Multiple Choice", "True/False", "Short Answer", "Fill in the Blank", "Mixed Format"])
         
-        with col2:
-            question_count = st.slider("Number of Questions:", min_value=3, max_value=20, value=10)
-            
-            include_answers = st.checkbox("Include Answer Key", value=True)
-        
-        # Additional options in an expander
-        with st.expander("Advanced Options"):
-            specific_topics = st.text_area("Focus on specific subtopics or concepts:", 
-                                          placeholder="e.g., French Revolution, Quadratic Equations, Cell Biology")
-            
-            learning_objectives = st.text_area("Learning objectives to assess:", 
-                                              placeholder="e.g., Understand causes and effects, Apply formulas to solve problems")
-            
-            time_limit = st.slider("Recommended Time Limit (minutes):", min_value=5, max_value=120, value=30)
-        
-        if st.button("Generate Quiz", use_container_width=True):
-            if not quiz_subject:
-                st.warning("Please enter a quiz subject")
-            else:
-                with st.spinner("Generating your quiz..."):
-                    try:
-                        # Create prompt for quiz
-                        quiz_prompt = f"Generate a {quiz_level} level quiz on {quiz_subject} with {question_count} {quiz_type} questions."
-                        
-                        if specific_topics:
-                            quiz_prompt += f" Focus on these specific topics: {specific_topics}."
-                        
-                        if learning_objectives:
-                            quiz_prompt += f" The quiz should assess these learning objectives: {learning_objectives}."
-                        
-                        quiz_prompt += f" The quiz should take approximately {time_limit} minutes to complete."
-                        
-                        if include_answers:
-                            quiz_prompt += " Include an answer key with explanations."
-                        
-                        # Generate quiz - try Gemini first, then Groq, then fallback
-                        if use_gemini:
-                            quiz_text = generate_content(
-                                prompt=quiz_prompt,
-                                model_name=get_model_name("chat"),
-                                temperature=0.7
-                            )
-                        elif use_groq:
-                            quiz_text = generate_content_with_groq(
-                                prompt=quiz_prompt,
-                                temperature=0.7
-                            )
-                        else:
-                            quiz_text = generate_text_fallback(quiz_prompt)
-                        
-                        # Display the generated quiz in a formatted box
-                        st.markdown("## Generated Quiz")
-                        st.markdown(f"<div style='background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>{quiz_text}</div>", unsafe_allow_html=True)
-                        
-                        # Add download options
-                        st.download_button(
-                            label="Download Quiz as Text",
-                            data=quiz_text,
-                            file_name=f"{quiz_subject.replace(' ', '_')}_quiz.txt",
-                            mime="text/plain"
-                        )
-                    
-                    except Exception as e:
-                        st.error(f"Error generating quiz: {str(e)}")
+        with col2
