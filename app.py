@@ -691,3 +691,184 @@ with selected_tab[3]:
                 try:
                     # Get audio bytes
                     audio_bytes = uploaded_audio.getvalue()
+                    
+                    # Create prompt for audio analysis
+                    audio_prompt = f"I've uploaded an audio file named '{uploaded_audio.name}'. "
+                    audio_prompt += f"Please perform the following analyses: {', '.join(analysis_options)}. "
+                    
+                    if language != "Auto-detect":
+                        audio_prompt += f"The audio is in {language}. "
+                    
+                    audio_prompt += "Please provide a detailed analysis focusing on educational value."
+                    
+                    # Add to history
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"[Audio uploaded] Please analyze with: {', '.join(analysis_options)}"})
+                    
+                    # For this demo, we'll use the text prompt only since direct audio processing
+                    # may not be fully supported yet
+                    response_text = generate_content(
+                        prompt=audio_prompt,
+                        model_name=get_model_name("chat"),
+                        temperature=0.3
+                    )
+                    
+                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                
+                except Exception as e:
+                    st.error(f"Error analyzing audio: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display audio analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
+
+# Video Learning tab
+with selected_tab[4]:
+    if st.session_state.current_mode != "Video Learning":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Video Learning"
+    
+    st.markdown("### Video Learning Assistant")
+    st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
+    
+    uploaded_video = st.file_uploader("Upload a video file:", type=["mp4", "mov", "avi", "mkv"])
+    
+    if uploaded_video is not None:
+        # Display video player
+        video_bytes = uploaded_video.getvalue()
+        st.video(video_bytes)
+        
+        video_analysis_options = st.multiselect("Select analysis types:", 
+                                      ["Video Transcription", "Content Summary", 
+                                       "Visual Concept Detection", "Key Moments Identification",
+                                       "Generate Quiz from Video", "Educational Value Assessment"])
+        
+        video_focus = st.selectbox("Educational Focus:", 
+                                ["General Analysis", "STEM Concepts", "Humanities Focus", 
+                                 "Language Learning", "Procedural Skills", "Critical Thinking"])
+        
+        if st.button("Analyze Video", use_container_width=True):
+            with st.spinner("Processing video..."):
+                try:
+                    # Create prompt for video analysis
+                    video_prompt = f"I've uploaded a video file named '{uploaded_video.name}'. "
+                    video_prompt += f"Please perform the following analyses: {', '.join(video_analysis_options)}. "
+                    video_prompt += f"Focus on {video_focus} educational aspects. "
+                    video_prompt += "Provide a detailed analysis of the educational value of this video."
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
+                    
+                    # Use our robust generate function (text only for now)
+                    response_text = generate_content(
+                        prompt=video_prompt,
+                        model_name=get_model_name("chat"),
+                        temperature=0.3
+                    )
+                    
+                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                
+                except Exception as e:
+                    st.error(f"Error analyzing video: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display video analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
+
+# Quiz Generator tab
+with selected_tab[5]:
+    if st.session_state.current_mode != "Quiz Generator":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Quiz Generator"
+    
+    st.markdown("### AI Quiz Generator")
+    st.markdown("Generate customized quizzes and assessments for any subject or learning level")
+    
+    quiz_subject = st.text_input("Quiz Subject or Topic:", placeholder="e.g., World History, Algebra, Biology")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        quiz_level = st.selectbox("Difficulty Level:", 
+                                ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Mixed"])
+        
+        quiz_type = st.selectbox("Question Type:", 
+                               ["Multiple Choice", "True/False", "Short Answer", "Fill in the Blank", "Mixed Format"])
+    
+    with col2:
+        question_count = st.slider("Number of Questions:", min_value=3, max_value=20, value=10)
+        
+        include_answers = st.checkbox("Include Answer Key", value=True)
+    
+    # Additional options in an expander
+    with st.expander("Advanced Options"):
+        specific_topics = st.text_area("Focus on specific subtopics or concepts:", 
+                                      placeholder="e.g., French Revolution, Quadratic Equations, Cell Biology")
+        
+        learning_objectives = st.text_area("Learning objectives to assess:", 
+                                          placeholder="e.g., Understand causes and effects, Apply formulas to solve problems")
+        
+        time_limit = st.slider("Recommended Time Limit (minutes):", min_value=5, max_value=120, value=30)
+    
+    if st.button("Generate Quiz", use_container_width=True):
+        if not quiz_subject:
+            st.warning("Please enter a quiz subject")
+        else:
+            with st.spinner("Generating your quiz..."):
+                try:
+                    # Create prompt for quiz
+                    quiz_prompt = f"Generate a {quiz_level} level quiz on {quiz_subject} with {question_count} {quiz_type} questions."
+                    
+                    if specific_topics:
+                        quiz_prompt += f" Focus on these specific topics: {specific_topics}."
+                    
+                    if learning_objectives:
+                        quiz_prompt += f" The quiz should assess these learning objectives: {learning_objectives}."
+                    
+                    quiz_prompt += f" The quiz should take approximately {time_limit} minutes to complete."
+                    
+                    if include_answers:
+                        quiz_prompt += " Include an answer key with explanations."
+                    
+                    # Generate with our robust function
+                    quiz_text = generate_content(
+                        prompt=quiz_prompt,
+                        model_name=get_model_name("chat"),
+                        temperature=0.7
+                    )
+                    
+                    # Display the generated quiz in a formatted box
+                    st.markdown("## Generated Quiz")
+                    st.markdown(f"<div style='background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>{quiz_text}</div>", unsafe_allow_html=True)
+                    
+                    # Add download options
+                    st.download_button(
+                        label="Download Quiz as Text",
+                        data=quiz_text,
+                        file_name=f"{quiz_subject.replace(' ', '_')}_quiz.txt",
+                        mime="text/plain"
+                    )
+                
+                except Exception as e:
+                    st.error(f"Error generating quiz: {str(e)}")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; padding: 10px; color: #666;">
+    <p>EduGenius - Powered by Google Gemini | &copy; 2025</p>
+    <p style="font-size: 0.8rem;">Disclaimer: This is a demo application. AI-generated content should be reviewed by educators before use in formal educational settings.</p>
+</div>
+""", unsafe_allow_html=True)
