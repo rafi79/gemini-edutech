@@ -6,6 +6,8 @@ import os
 import tempfile
 from google import generativeai
 import google.generativeai as genai
+import PyPDF2
+
 
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
@@ -325,7 +327,14 @@ with selected_tab[1]:
     
     uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
     
-    if uploaded_file is not None:
+    # Add manual text input option as a fallback
+    manual_text_input = st.text_area(
+        "Or paste document content here:",
+        height=200, 
+        placeholder="Paste the content of your document here if file upload doesn't work properly..."
+    )
+    
+    if uploaded_file is not None or manual_text_input:
         analysis_type = st.multiselect("Select analysis types:", 
                                       ["Key Concepts Extraction", "Summary Generation", 
                                        "Difficulty Assessment", "Concept Relations", 
@@ -333,32 +342,46 @@ with selected_tab[1]:
         
         if st.button("Analyze Document", use_container_width=True):
             with st.spinner("Analyzing document..."):
-                # Get file content as bytes
-                file_bytes = uploaded_file.getvalue()
-                
-                # Create a temporary file to hold the content
-                with tempfile.NamedTemporaryFile(delete=False, suffix="." + uploaded_file.name.split(".")[-1]) as temp_file:
-                    temp_file.write(file_bytes)
-                    temp_file_path = temp_file.name
-                
                 try:
-                    # For text files, we can read and process directly
-                    if uploaded_file.type == "text/plain":
-                        file_content = file_bytes.decode('utf-8')
-                        # If the file is large, trim it
-                        if len(file_content) > 10000:
-                            file_content = file_content[:10000] + "... [content truncated due to size]"
-                    else:
-                        # For other files, use a simplification for this demo
-                        file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
+                    file_content = ""
+                    file_name = "pasted text"
+                    
+                    if uploaded_file is not None:
+                        file_name = uploaded_file.name
+                        # Get file content as bytes
+                        file_bytes = uploaded_file.getvalue()
+                        
+                        # Process based on file type
+                        if uploaded_file.type == "text/plain":
+                            # For text files
+                            file_content = file_bytes.decode('utf-8')
+                        elif uploaded_file.name.lower().endswith('.pdf'):
+                            # For PDF files
+                            try:
+                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                                for page in pdf_reader.pages:
+                                    file_content += page.extract_text() + "\n"
+                            except Exception as pdf_error:
+                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
+                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
+                        else:
+                            # For other file types
+                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
+                    elif manual_text_input:
+                        # Use the pasted text instead
+                        file_content = manual_text_input
+                    
+                    # If the file content is large, trim it
+                    if len(file_content) > 10000:
+                        file_content = file_content[:10000] + "... [content truncated due to size]"
                     
                     # Create prompt for document analysis
-                    analysis_prompt = f"I'm uploading a document named '{uploaded_file.name}'. "
+                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
                     analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
                     analysis_prompt += "Here's the document content: " + file_content
                     
                     # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
+                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
                     
                     # Generate response
                     response_text = generate_content(
@@ -369,17 +392,10 @@ with selected_tab[1]:
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                    
-                    # Clean up the temporary file
-                    os.unlink(temp_file_path)
                 
                 except Exception as e:
                     st.error(f"Error analyzing document: {str(e)}")
                     st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-                    
-                    # Clean up the temporary file
-                    if os.path.exists(temp_file_path):
-                        os.unlink(temp_file_path)
     
     # Display analysis history
     st.markdown("### Analysis Results")
