@@ -5,7 +5,7 @@ import io
 import os
 import tempfile
 import PyPDF2
-from groq import Groq
+
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
                    page_icon="🧠", 
@@ -681,3 +681,6 @@ with selected_tab[3]:
                         file_name=f"{quiz_subject.replace(' ', '_')}_quiz.txt",
                         mime="text/plain"
                     )
+                
+                except Exception as e:
+                    st.error(f"Error generating quiz: {str(e)}")
