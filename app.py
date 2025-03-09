@@ -4,10 +4,26 @@ from PIL import Image
 import io
 import os
 import tempfile
-from google import generativeai
-import google.generativeai as genai
-import PyPDF2
-from groq import Groq
+
+# Try importing libraries with error handling
+try:
+    from google import generativeai
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
+    
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 
 # Set page configuration
@@ -85,17 +101,28 @@ st.markdown("""
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCagQKSSGGM-VcoOwIVEFp2l8dX-FIvTcA")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 
-# Initialize Gemini client
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-except Exception as e:
-    st.error(f"Failed to initialize Gemini API: {str(e)}")
+# Initialize Gemini client if available
+if GEMINI_AVAILABLE:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        st.error(f"Failed to initialize Gemini API: {str(e)}")
+else:
+    st.warning("Google Generative AI (Gemini) library is not installed. Some features may not work properly.")
 
-# Initialize Groq client
-try:
-    groq_client = Groq(api_key=GROQ_API_KEY)
-except Exception as e:
-    st.error(f"Failed to initialize Groq API: {str(e)}")
+# Initialize Groq client if available
+groq_client = None
+if GROQ_AVAILABLE:
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        st.error(f"Failed to initialize Groq API: {str(e)}")
+else:
+    st.warning("Groq library is not installed. Document analysis with Groq will not be available.")
+    
+# Check for PDF support
+if not PYPDF2_AVAILABLE:
+    st.warning("PyPDF2 library is not installed. PDF processing functionality will be limited.")
 
 # Function to get the appropriate model based on task
 def get_model_name(task_type="chat"):
@@ -107,6 +134,9 @@ def get_model_name(task_type="chat"):
 # Function to generate content with Gemini API
 def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, temperature=0.7):
     """Generate content with error handling"""
+    if not GEMINI_AVAILABLE:
+        return "Google Generative AI (Gemini) is not available. Please install the library using 'pip install google-generativeai'."
+    
     try:
         # Generation config
         generation_config = {
@@ -153,6 +183,9 @@ def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, tem
 # Function to generate content with Groq API (specialized for document analysis)
 def generate_content_with_groq(prompt, temperature=0.6):
     """Generate content using Groq API with streaming for document analysis"""
+    if not GROQ_AVAILABLE or groq_client is None:
+        return "Groq API is not available. Please install the groq library using 'pip install groq'."
+    
     try:
         full_response = ""
         
@@ -193,7 +226,19 @@ if "first_visit" not in st.session_state:
 
 # Header
 st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
-st.markdown('<div class="edu-subheader">Powered by Google Gemini & Groq | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+
+# Adjust the subheader based on available models
+ai_models = []
+if GEMINI_AVAILABLE:
+    ai_models.append("Google Gemini")
+if GROQ_AVAILABLE:
+    ai_models.append("Groq")
+    
+if ai_models:
+    st.markdown(f'<div class="edu-subheader">Powered by {" & ".join(ai_models)} | Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+else:
+    st.markdown('<div class="edu-subheader">Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+    st.error("No AI models are currently available. Please install the required libraries: 'pip install google-generativeai groq pypdf2'.")
 
 # Display welcome screen on first visit
 if st.session_state.first_visit:
@@ -365,8 +410,17 @@ with selected_tab[1]:
     st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
     
     # Add API selection for document analysis
-    api_choice = st.radio("Select AI model for document analysis:", 
-                          ["Groq (Qwen-2.5-32B) - Better for documents", "Google Gemini"])
+    api_options = []
+    if GROQ_AVAILABLE:
+        api_options.append("Groq (Qwen-2.5-32B) - Better for documents")
+    if GEMINI_AVAILABLE:
+        api_options.append("Google Gemini")
+    
+    if not api_options:
+        st.error("No AI models are available. Please install required libraries.")
+        api_choice = None
+    else:
+        api_choice = st.radio("Select AI model for document analysis:", api_options)
     
     uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
     
@@ -398,22 +452,27 @@ with selected_tab[1]:
                         if uploaded_file.type == "text/plain":
                             # For text files
                             file_content = file_bytes.decode('utf-8')
-                        elif uploaded_file.name.lower().endswith('.pdf'):
+                        el                        if uploaded_file.name.lower().endswith('.pdf'):
                             # For PDF files
-                            try:
-                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-                                for page in pdf_reader.pages:
-                                    extracted_text = page.extract_text()
-                                    if extracted_text:  # Only add if text was actually extracted
-                                        file_content += extracted_text + "\n"
-                                
-                                if not file_content.strip():
-                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
-                                    api_choice = "Groq (Qwen-2.5-32B) - Better for documents"
-                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
-                            except Exception as pdf_error:
-                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
-                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
+                            if PYPDF2_AVAILABLE:
+                                try:
+                                    pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                                    for page in pdf_reader.pages:
+                                        extracted_text = page.extract_text()
+                                        if extracted_text:  # Only add if text was actually extracted
+                                            file_content += extracted_text + "\n"
+                                    
+                                    if not file_content.strip():
+                                        st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
+                                        if "Groq" in api_options:
+                                            api_choice = "Groq (Qwen-2.5-32B) - Better for documents"
+                                        file_content = f"[Image-based PDF: {uploaded_file.name}]"
+                                except Exception as pdf_error:
+                                    st.error(f"Error extracting PDF content: {str(pdf_error)}")
+                                    file_content = f"[Unable to extract content from {uploaded_file.name}]"
+                            else:
+                                st.error("PyPDF2 library is not installed. Cannot process PDF files.")
+                                file_content = f"[Cannot process PDF: {uploaded_file.name}] - PyPDF2 library is required."
                         else:
                             # For other file types
                             file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
@@ -434,20 +493,22 @@ with selected_tab[1]:
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
                     
                     # Generate response based on selected API
-                    if api_choice.startswith("Groq"):
+                    if api_choice and api_choice.startswith("Groq") and GROQ_AVAILABLE:
                         # Use Groq for document analysis
                         with st.status("Processing with Groq's Qwen model..."):
                             response_text = generate_content_with_groq(
                                 prompt=analysis_prompt,
                                 temperature=0.6
                             )
-                    else:
+                    elif GEMINI_AVAILABLE:
                         # Use Gemini for document analysis
                         response_text = generate_content(
                             prompt=analysis_prompt,
                             model_name=get_model_name("chat"),
                             temperature=0.3
                         )
+                    else:
+                        response_text = "Sorry, no AI models are currently available. Please install the required libraries."
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
@@ -605,11 +666,25 @@ with selected_tab[3]:
                 except Exception as e:
                     st.error(f"Error generating quiz: {str(e)}")
 
-# Footer
+# Requirements message
 st.markdown("---")
 st.markdown("""
+<div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+    <p style="font-size: 0.9rem;"><strong>Required Libraries:</strong></p>
+    <p style="font-size: 0.8rem;">This application requires the following Python libraries:</p>
+    <ul style="font-size: 0.8rem;">
+        <li><code>pip install streamlit pillow</code> (Required)</li>
+        <li><code>pip install google-generativeai</code> (For Gemini AI features)</li>
+        <li><code>pip install groq</code> (For document analysis with Groq)</li>
+        <li><code>pip install pypdf2</code> (For PDF processing)</li>
+    </ul>
+</div>
+""", unsafe_allow_html=True)
+
+# Footer
+st.markdown("""
 <div style="text-align: center; padding: 10px; color: #666;">
-    <p>EduGenius - Powered by Google Gemini & Groq | &copy; 2025</p>
+    <p>EduGenius - Powered by AI | &copy; 2025</p>
     <p style="font-size: 0.8rem;">Disclaimer: This is a demo application. AI-generated content should be reviewed by educators before use in formal educational settings.</p>
 </div>
 """, unsafe_allow_html=True)
