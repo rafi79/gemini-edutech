@@ -695,17 +695,6 @@ with selected_tab[1]:
                                     temperature=0.6
                                 )
                         except Exception as e:
-                    st.error(f"Error analyzing document: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")
                             st.error(f"Groq API error: {str(e)}")
                             # Fallback to Gemini if available
                             if use_gemini:
@@ -730,5 +719,16 @@ with selected_tab[1]:
                     
                     # Add to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                
+                    
                 except Exception as e:
+                    st.error(f"Error analyzing document: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
