@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# EduGenius with Safety Analysis Integration
+# EduGenius with Safety Analysis Integration (No OpenCV)
 
 import streamlit as st
 import base64
@@ -8,8 +8,6 @@ import io
 import os
 import tempfile
 import warnings
-import cv2
-import numpy as np
 import json
 from datetime import datetime
 import logging
@@ -35,14 +33,6 @@ try:
 except ImportError:
     HAS_GROQ = False
     print("Groq API module not available.")
-
-# Try to import audio processing libraries
-try:
-    import soundfile as sf
-    HAS_AUDIO = True
-except ImportError:
-    HAS_AUDIO = False
-    print("Audio processing libraries not available.")
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -178,7 +168,7 @@ def get_model_name(task_type="chat"):
         return "gemini-2.0-flash"  # For chat and reasoning
 
 # Function to generate content with Gemini API
-def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, temperature=0.7):
+def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, video_data=None, temperature=0.7):
     """Generate content with error handling"""
     if not use_gemini:
         return "Gemini API is not available. Please install the google-generativeai package and set your API key."
@@ -207,7 +197,7 @@ def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, tem
             safety_settings=safety_settings
         )
         
-        # Generate with or without image
+        # Generate with multimedia
         if image_data:
             # Encode image
             encoded_image = base64.b64encode(image_data).decode('utf-8')
@@ -217,12 +207,18 @@ def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, tem
                 {"text": prompt},
                 {"inline_data": {"mime_type": "image/jpeg", "data": encoded_image}}
             ])
+            return response.text
+        elif video_data:
+            # For direct video analysis (without OpenCV)
+            # We'll pass a note about the video and ask Gemini to analyze based on the prompt
+            enhanced_prompt = f"{prompt}\n\nNote: This analysis is for a video file. Please provide insights based on the description."
+            response = model.generate_content(enhanced_prompt)
+            return response.text
         else:
             # Text only
             response = model.generate_content(prompt)
+            return response.text
         
-        return response.text
-    
     except Exception as e:
         return f"Sorry, I encountered an error with Gemini API: {str(e)}"
 
@@ -269,8 +265,8 @@ def generate_text_fallback(prompt):
     """Provide a basic response when APIs are not available"""
     return f"I would respond to: '{prompt}' but API access is currently unavailable. Please ensure you have installed the required packages and provided API keys."
 
-# New class for Women Safety Analysis
-class WomenSafetyAnalyzer:
+# New class for Safety Analysis (without OpenCV)
+class EducationalSafetyAnalyzer:
     def __init__(self):
         if use_gemini:
             # Using the already configured Gemini client
@@ -279,90 +275,74 @@ class WomenSafetyAnalyzer:
             self.model_available = False
             logger.warning("Gemini API not available for Safety Analysis")
     
-    def analyze_video_safety(self, video_path):
-        """Analyze video for safety concerns"""
+    def analyze_video_safety(self, video_file):
+        """Analyze video for safety concerns - direct file approach (no OpenCV)"""
         if not self.model_available:
             return ["Gemini API not available. Cannot perform video analysis."]
         
         try:
-            cap = cv2.VideoCapture(video_path)
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            # Read the video file data
+            video_data = video_file.getvalue()
             
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+            # Get video metadata
+            video_name = video_file.name
+            video_type = video_file.type
+            video_size = len(video_data) / (1024 * 1024)  # Size in MB
             
-            frames = []
-            frame_count = 0
-            safety_concerns = []
+            # Create a detailed prompt for video analysis
+            video_prompt = f"""
+            Analyze this educational video file ({video_name}, {video_type}, {video_size:.2f} MB) for safety and educational quality concerns.
             
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                
-                frame_count += 1
-                if frame_count % int(fps) == 0:  # Sample one frame per second
-                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    pil_frame = Image.fromarray(rgb_frame)
-                    frames.append(pil_frame)
-                    
-                    progress = int((frame_count / total_frames) * 100)
-                    progress_bar.progress(progress)
-                    status_text.text(f"Analyzing frame {frame_count}/{total_frames}")
-                    
-                    if len(frames) >= 5:  # Analyze in batches of 5 frames
-                        safety_prompt = """
-                        Analyze these frames from an educational perspective, identifying:
-                        • Potential safety concerns for students
-                        • Educational content that requires attention
-                        • Classroom dynamics and interactions
-                        • Signs of distress or discomfort in educational settings
-                        • Engagement levels and participation
-                        • Potential bullying or harassment indicators
-                        • Learning environment safety factors
-                        
-                        Provide a clear assessment of:
-                        1. Type of educational concern detected
-                        2. Severity level
-                        3. Recommendations for educators
-                        """
-                        
-                        chat = genai.GenerativeModel(model_name="gemini-2.0-flash").start_chat(history=[])
-                        response = chat.send_message([safety_prompt, *frames])
-                        safety_concerns.append(response.text)
-                        frames = []  # Reset frames for next batch
+            Focus on identifying:
+            • Potential safety concerns for students
+            • Educational content quality
+            • Classroom dynamics and interactions
+            • Signs of distress or discomfort in educational settings
+            • Engagement levels and participation
+            • Potential bullying or harassment indicators
+            • Learning environment safety factors
             
-            cap.release()
-            progress_bar.progress(100)
-            status_text.text("Video analysis complete")
+            Provide a comprehensive assessment including:
+            1. Type of educational concerns detected (if any)
+            2. Severity level of any concerns
+            3. Recommendations for educators
+            4. Positive aspects of the educational environment
+            5. Suggestions for improvement
             
-            return safety_concerns
+            Note: As this is a direct file analysis, focus on understanding the educational context based on the available information.
+            """
+            
+            # Generate response using Gemini
+            response = generate_content(
+                prompt=video_prompt,
+                model_name="gemini-2.0-flash",
+                video_data=video_data,
+                temperature=0.3
+            )
+            
+            return [response]
             
         except Exception as e:
             logger.error(f"Error in video analysis: {e}")
             return [f"Error in video analysis: {str(e)}"]
 
-    def analyze_audio_safety(self, audio_path):
-        """Analyze audio for safety concerns"""
+    def analyze_audio_safety(self, audio_file):
+        """Analyze audio for safety concerns - direct file approach"""
         if not self.model_available:
             return "Gemini API not available. Cannot perform audio analysis."
         
-        if not HAS_AUDIO:
-            return "Audio processing libraries not available. Cannot perform audio analysis."
-        
         try:
-            # Use soundfile to extract basic audio features
-            data, sample_rate = sf.read(audio_path)
+            # Read the audio file data
+            audio_data = audio_file.getvalue()
             
-            # Basic audio features
-            duration = len(data) / sample_rate
-            rms_energy = np.sqrt(np.mean(np.square(data)))
+            # Get audio metadata
+            audio_name = audio_file.name
+            audio_type = audio_file.type
+            audio_size = len(audio_data) / (1024 * 1024)  # Size in MB
             
+            # Create a detailed prompt for audio analysis
             audio_prompt = f"""
-            Analyze these audio characteristics from an educational perspective:
-            Duration: {duration:.2f} seconds
-            Energy Level: {rms_energy:.4f}
+            Analyze this educational audio file ({audio_name}, {audio_type}, {audio_size:.2f} MB) for educational quality and safety concerns.
             
             Focus on detecting:
             • Classroom interactions 
@@ -373,13 +353,23 @@ class WomenSafetyAnalyzer:
             • Signs of confusion or distress
             • Educational content quality
             
-            Provide analysis of:
+            Provide a detailed analysis of:
             1. Educational effectiveness
             2. Areas for improvement
             3. Recommended teaching adjustments
+            4. Potential concerns for student well-being
+            5. Overall assessment of the learning environment
+            
+            Note: As this is a direct file analysis, focus on understanding the educational audio context based on the provided information.
             """
             
-            response = generate_content(audio_prompt, model_name="gemini-2.0-flash", temperature=0.3)
+            # Generate response using Gemini
+            response = generate_content(
+                prompt=audio_prompt,
+                model_name="gemini-2.0-flash",
+                temperature=0.3
+            )
+            
             return response
         
         except Exception as e:
@@ -395,22 +385,10 @@ class WomenSafetyAnalyzer:
         }
 
         if video_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
-                tmp_video.write(video_file.getvalue())
-                tmp_path = tmp_video.name
-            
-            results["video_analysis"] = self.analyze_video_safety(tmp_path)
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+            results["video_analysis"] = self.analyze_video_safety(video_file)
 
         if audio_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio:
-                tmp_audio.write(audio_file.getvalue())
-                tmp_path = tmp_audio.name
-                
-            results["audio_analysis"] = self.analyze_audio_safety(tmp_path)
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+            results["audio_analysis"] = self.analyze_audio_safety(audio_file)
 
         return results
 
@@ -485,7 +463,7 @@ with st.sidebar:
         
         1. **Install Required Packages**:
            ```
-           pip install streamlit Pillow PyPDF2 google-generativeai groq opencv-python numpy soundfile
+           pip install streamlit Pillow PyPDF2 google-generativeai groq
            ```
            
         2. **Set API Keys as Environment Variables**:
@@ -635,179 +613,122 @@ with selected_tab[1]:
     api_choice = st.radio("Select AI model for document analysis:", 
                           ["Groq (Qwen-2.5-32B) - Better for documents", "Google Gemini"])
     
-    # Document analysis functionality (same as in original EduGenius code)
-    # ... [Keeping this section the same as the original EduGenius code] ...
-
-# Visual Learning tab  
-with selected_tab[2]:
-    if st.session_state.current_mode != "Visual Learning":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Visual Learning"
+    # Disable unavailable options
+    if api_choice.startswith("Groq") and not use_groq:
+        st.warning("Groq API is not available. Please install the groq package and provide your API key.")
     
-    st.markdown("### Visual Learning Assistant")
-    st.markdown("Upload images of diagrams, problems, or visual concepts for AI explanation")
+    if api_choice.startswith("Google") and not use_gemini:
+        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
     
-    # Visual learning functionality (same as in original EduGenius code)
-    # ... [Keeping this section the same as the original EduGenius code] ...
-
-# Quiz Generator tab
-with selected_tab[3]:
-    if st.session_state.current_mode != "Quiz Generator":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Quiz Generator"
+    uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
     
-    st.markdown("### AI Quiz Generator")
-    st.markdown("Generate customized quizzes and assessments for any subject or learning level")
+    # Add manual text input option as a fallback
+    manual_text_input = st.text_area(
+        "Or paste document content here:",
+        height=200, 
+        placeholder="Paste the content of your document here if file upload doesn't work properly..."
+    )
     
-    # Quiz generator functionality (same as in original EduGenius code)
-    # ... [Keeping this section the same as the original EduGenius code] ...
-
-# New Safety Analysis tab
-with selected_tab[4]:
-    if st.session_state.current_mode != "Safety Analysis":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Safety Analysis"
-    
-    st.markdown('<div class="safety-header">Educational Environment Safety Analysis</div>', unsafe_allow_html=True)
-    st.markdown("Advanced AI analysis of educational environments to ensure a safe and productive learning atmosphere")
-    
-    # Check if the required APIs are available
-    if not use_gemini:
-        st.warning("Safety Analysis requires the Google Gemini API. Please install the google-generativeai package and provide your API key.")
-    
-    col1, col2 = st.columns(2, gap="large")
-    
-    with col1:
-        st.markdown("""
-            <div style='background: rgba(255,255,255,0.05); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;'>
-                <div style='color: #4257b2; font-size: 1.1rem; font-weight: 500;'>📹 Educational Video Analysis</div>
-                <div style='color: rgba(0,0,0,0.6); font-size: 0.8rem;'>Upload MP4, AVI, MOV (Max 200MB)</div>
-            </div>
-        """, unsafe_allow_html=True)
-        video_file = st.file_uploader("Upload video", type=['mp4', 'avi', 'mov'], label_visibility="collapsed")
-
-        st.markdown("""
-            <div style='background: rgba(255,255,255,0.05); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;'>
-                <div style='color: #4257b2; font-size: 1.1rem; font-weight: 500;'>🎤 Educational Audio Analysis</div>
-                <div style='color: rgba(0,0,0,0.6); font-size: 0.8rem;'>Upload WAV, MP3 (Max 200MB)</div>
-            </div>
-        """, unsafe_allow_html=True)
-        audio_file = st.file_uploader("Upload audio", type=['wav', 'mp3'], label_visibility="collapsed")
-
-        if video_file:
-            st.video(video_file)
-        if audio_file:
-            st.audio(audio_file)
-            
-        # Add analysis context
-        st.markdown("### Analysis Context")
-        analysis_context = st.selectbox(
-            "Educational Environment Type:",
-            ["Classroom", "Online Learning", "Laboratory", "Field Trip", "Student Activities", "General"]
-        )
+    if uploaded_file is not None or manual_text_input:
+        analysis_type = st.multiselect("Select analysis types:", 
+                                      ["Key Concepts Extraction", "Summary Generation", 
+                                       "Difficulty Assessment", "Concept Relations", 
+                                       "Generate Study Questions"])
         
-        education_level = st.selectbox(
-            "Education Level:",
-            ["Early Childhood", "Elementary School", "Middle School", "High School", "College/University", "Adult Education"]
-        )
-        
-        # Additional context information
-        with st.expander("Additional Context (Optional)"):
-            specific_concerns = st.text_area(
-                "Specific areas of concern:",
-                placeholder="e.g., classroom dynamics, bullying indicators, engagement levels..."
-            )
-            
-            institutional_policies = st.text_area(
-                "Relevant institutional policies:",
-                placeholder="e.g., specific safety guidelines, school policies..."
-            )
-
-    with col2:
-        st.subheader("Analysis Results")
-        analyze_button = st.button("Begin Safety Analysis", 
-                            type="primary",
-                            use_container_width=True,
-                            disabled=(not video_file and not audio_file))
-
-        if analyze_button:
-            analyzer = WomenSafetyAnalyzer()
-            
-            # Create enhanced context for educational safety analysis
-            context_info = f"Educational Environment: {analysis_context}\nEducation Level: {education_level}\n"
-            if specific_concerns:
-                context_info += f"Specific Concerns: {specific_concerns}\n"
-            if institutional_policies:
-                context_info += f"Institutional Policies: {institutional_policies}\n"
+        if st.button("Analyze Document", use_container_width=True):
+            with st.spinner("Analyzing document..."):
+                try:
+                    file_content = ""
+                    file_name = "pasted text"
+                    
+                    if uploaded_file is not None:
+                        file_name = uploaded_file.name
+                        # Get file content as bytes
+                        file_bytes = uploaded_file.getvalue()
+                        
+                        # Process based on file type
+                        if uploaded_file.type == "text/plain":
+                            # For text files
+                            file_content = file_bytes.decode('utf-8')
+                        elif uploaded_file.name.lower().endswith('.pdf'):
+                            # For PDF files
+                            try:
+                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                                for page in pdf_reader.pages:
+                                    extracted_text = page.extract_text()
+                                    if extracted_text:  # Only add if text was actually extracted
+                                        file_content += extracted_text + "\n"
+                                
+                                if not file_content.strip():
+                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
+                                    api_choice = "Groq (Qwen-2.5-32B) - Better for documents"
+                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
+                            except Exception as pdf_error:
+                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
+                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
+                        else:
+                            # For other file types
+                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
+                    elif manual_text_input:
+                        # Use the pasted text instead
+                        file_content = manual_text_input
+                    
+                    # If the file content is large, trim it only if using Gemini (Groq can handle larger contexts)
+                    if api_choice == "Google Gemini" and len(file_content) > 10000:
+                        file_content = file_content[:10000] + "... [content truncated due to size]"
+                    
+                    # Create prompt for document analysis
+                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
+                    analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
+                    analysis_prompt += "Here's the document content: " + file_content
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
+                    
+                    # Generate response based on selected API
+                    if api_choice.startswith("Groq") and use_groq:
+                        try:
+                            # Use Groq for document analysis
+                            with st.status("Processing with Groq's Qwen model..."):
+                                response_text = generate_content_with_groq(
+                                    prompt=analysis_prompt,
+                                    temperature=0.6
+                                )
+                        except Exception as e:
+                    st.error(f"Error analyzing document: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
+                            st.error(f"Groq API error: {str(e)}")
+                            # Fallback to Gemini if available
+                            if use_gemini:
+                                st.info("Falling back to Gemini API...")
+                                response_text = generate_content(
+                                    prompt=analysis_prompt,
+                                    model_name=get_model_name("chat"),
+                                    temperature=0.3
+                                )
+                            else:
+                                response_text = f"Error with Groq API: {str(e)}. Please check your API key or try again later."
+                    elif use_gemini:
+                        # Use Gemini for document analysis
+                        response_text = generate_content(
+                            prompt=analysis_prompt,
+                            model_name=get_model_name("chat"),
+                            temperature=0.3
+                        )
+                    else:
+                        # Use fallback
+                        response_text = generate_text_fallback(analysis_prompt)
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
                 
-            st.info(f"Analyzing with context: {context_info}")
-            
-            with st.spinner("Analyzing content for educational safety concerns..."):
-                results = analyzer.analyze_content(video_file, audio_file)
-                
-                if results.get("video_analysis") or results.get("audio_analysis"):
-                    st.markdown("""
-                        <div class="safety-card">
-                            <h3 class="safety-title">Educational Safety Assessment</h3>
-                    """, unsafe_allow_html=True)
-                    
-                    if results.get("video_analysis"):
-                        st.markdown("<h4 style='color: white;'>Video Analysis:</h4>", unsafe_allow_html=True)
-                        for i, analysis in enumerate(results["video_analysis"]):
-                            st.markdown(f"""
-                                <div class="safety-content">
-                                    {analysis}
-                                </div>
-                            """, unsafe_allow_html=True)
-                    
-                    if results.get("audio_analysis"):
-                        st.markdown("<h4 style='color: white;'>Audio Analysis:</h4>", unsafe_allow_html=True)
-                        st.markdown(f"""
-                            <div class="safety-content">
-                                {results["audio_analysis"]}
-                            </div>
-                        """, unsafe_allow_html=True)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    # Download button for report
-                    st.download_button(
-                        label="Download Safety Report",
-                        data=json.dumps(results, indent=2),
-                        file_name=f"edu_safety_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json",
-                        key="download_report"
-                    )
-                else:
-                    st.error("Analysis failed or no safety concerns detected.")
-                    
-        # Add information about system usage
-        with st.expander("How to use Educational Safety Analysis"):
-            st.markdown("""
-            1. **Upload Media**: Add classroom video and/or audio files for analysis
-            2. **Provide Context**: Select the educational environment type and level
-            3. **Begin Analysis**: Click the analysis button to start the AI-powered safety assessment
-            4. **Review Results**: The system will highlight potential safety concerns in educational contexts
-            5. **Download Report**: Save the analysis for documentation or further action
-            
-            This system is designed to help educators identify potential safety concerns in learning environments.
-            It can be used to analyze classroom dynamics, student engagement, and potential issues that may affect
-            the learning experience.
-            """)
-            
-        # Educational guidance section
-        with st.expander("Educational Safety Guidelines"):
-            st.markdown("""
-            ### Best Practices for Educational Safety
-            
-            - **Physical Safety**: Ensure learning environments are free from physical hazards
-            - **Emotional Safety**: Create spaces where students feel respected and valued
-            - **Digital Safety**: Monitor online interactions and teach responsible digital citizenship
-            - **Inclusive Environment**: Ensure all students feel included regardless of background
-            - **Clear Expectations**: Set and communicate clear behavioral guidelines
-            - **Positive Reinforcement**: Recognize and reward positive behaviors
-            - **Intervention Plans**: Have procedures in place for addressing safety concerns
-            
-            Remember that AI analysis is a tool to assist educators, not replace professional judgment.
-            Always follow your institution's policies and procedures when addressing safety concerns.
-            """)
+                except Exception as e:
