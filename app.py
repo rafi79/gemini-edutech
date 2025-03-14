@@ -717,22 +717,31 @@ with selected_tab[0]:
             }
             
     # Processing user input
-    if submit_button and user_input:
-        # Add user message to chat
-        st.session_state.tutor_messages.append({"role": "user", "content": user_input})
-        
-        # Create system context based on selected options
+    # Processing user input
+      if submit_button and user_input:
+    # Add user message to chat
+           st.session_state.tutor_messages.append({"role": "user", "content": user_input})
+    
+    # Create system context based on selected options
         system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
-        
-        # Create conversation history for context
-        conversation_history = ""
-        if memory_option and len(st.session_state.tutor_messages) > 1:
-            for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
-                role = "User" if msg["role"] == "user" else "EduGenius"
-                conversation_history += f"{role}: {msg['content']}\n\n"
-        
-        # Try to generate response
-        with st.spinner("Thinking..."):
+    
+    # Create conversation history for context
+    conversation_history = ""
+      if memory_option and len(st.session_state.tutor_messages) > 1:
+        for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
+            role = "User" if msg["role"] == "user" else "EduGenius"
+            conversation_history += f"{role}: {msg['content']}\n\n"
+    
+    # Try to generate response
+          with st.spinner("Thinking..."):
+          try:
+            # Determine if we have multimedia
+            has_multimedia = False
+            media_bytes = None
+            
+            # Rest of your code here...
+        # Code to execute while showing spinner
+        # Rest of the code
         if analyze_button and (video_file or audio_file):
         with st.spinner("Analyzing educational content..."):
             try:
