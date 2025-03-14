@@ -127,8 +127,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDLPkZIKqjPzdawHnWjEFnX3h-pkML0vm0")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 
 # Initialize API clients conditionally
 use_groq = False
@@ -339,26 +339,11 @@ def generate_content_with_groq(prompt, temperature=0.6):
     
     except Exception as e:
         return f"Sorry, I encountered an error with Groq API: {str(e)}"
+
+# Fallback text generation for when APIs are not available
 def generate_text_fallback(prompt):
     """Provide a basic response when APIs are not available"""
     return f"I would respond to: '{prompt}' but API access is currently unavailable. Please ensure you have installed the required packages and provided API keys."
-
-# Main entry point - This will run the Streamlit app
-if __name__ == "__main__":
-    # Check for missing dependencies and display warning
-    if not HAS_GEMINI and not HAS_GROQ:
-        st.warning("""
-        ⚠️ Required API packages are missing. For full functionality, please install:
-        ```
-        pip install google-generativeai groq
-        ```
-        """)
-    
-    # Print startup message to console
-    logger.info("EduGenius started successfully")
-    logger.info(f"Gemini API available: {use_gemini}")
-    logger.info(f"Groq API available: {use_groq}")
-
 
 # Class for Educational Content Analysis
 class EducationalContentAnalyzer:
@@ -641,8 +626,269 @@ with st.sidebar:
            - For Groq: `GROQ_API_KEY`
         """)
 
-# App modes with added Educational Content Analysis
-# Add the remaining tabs
+# Define the tab names
+tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator", "Educational Content Analysis"]
+
+# Create tabs
+selected_tab = st.tabs(tab_names)
+
+# Learning Assistant tab
+with selected_tab[0]:
+    if st.session_state.current_mode != "Learning Assistant":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Learning Assistant"
+    
+    st.markdown("### Your AI Learning Companion")
+    st.markdown("Ask any question about any subject, request explanations, or get help with homework")
+    
+    # Configure learning settings in an expandable section
+    with st.expander("Learning Settings", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            learning_level = st.selectbox("Learning Level:", 
+                                        ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"])
+            learning_style = st.selectbox("Learning Style:", 
+                                        ["Visual", "Textual", "Interactive", "Example-based", "Socratic"])
+        
+        with col2:
+            memory_option = st.checkbox("Enable Chat Memory", value=True, 
+                                     help="When enabled, the AI will remember previous exchanges in this conversation")
+    
+    # Display chat messages
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.tutor_messages:
+            if message["role"] == "user":
+                st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>EduGenius:</strong> {message['content']}</div>", unsafe_allow_html=True)
+    
+    # Chat input area with a more modern design
+    st.markdown("<br>", unsafe_allow_html=True)
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        user_input = st.text_area("Your question:", height=80, key="tutor_input",
+                                placeholder="Type your question here... (e.g., Explain quantum entanglement in simple terms)")
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        submit_button = st.button("Send", use_container_width=True, key="tutor_submit")
+        
+        # Add multimedia upload option
+        upload_option = st.selectbox("", ["Add Media", "Image"], key="upload_selector")
+    
+    # Handle file uploads
+    uploaded_file = None
+    if upload_option != "Add Media":
+        if upload_option == "Image":
+            uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
+        
+        if uploaded_file is not None:
+            # Display information about the uploaded file
+            st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
+            # Store the file reference in the session state for later use
+            st.session_state.current_upload = {
+                "file": uploaded_file,
+                "type": upload_option,
+                "name": uploaded_file.name
+            }
+            
+    # Processing user input
+    if submit_button and user_input:
+        # Add user message to chat
+        st.session_state.tutor_messages.append({"role": "user", "content": user_input})
+        
+        # Create system context based on selected options
+        system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
+        
+        # Create conversation history for context
+        conversation_history = ""
+        if memory_option and len(st.session_state.tutor_messages) > 1:
+            for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
+                role = "User" if msg["role"] == "user" else "EduGenius"
+                conversation_history += f"{role}: {msg['content']}\n\n"
+        
+        # Try to generate response
+        with st.spinner("Thinking..."):
+            try:
+                # Determine if we have multimedia
+                has_multimedia = False
+                media_bytes = None
+                
+                if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
+                    has_multimedia = True
+                    media_bytes = st.session_state.current_upload["file"].getvalue()
+                
+                # Create prompt with system context and conversation history
+                prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
+                
+                if has_multimedia:
+                    media_type = st.session_state.current_upload["type"].lower()
+                    prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
+                
+                if use_gemini:
+                    # Select appropriate model
+                    model_name = get_model_name("image" if has_multimedia else "chat")
+                    
+                    # Generate response
+                    response_text = generate_content(
+                        prompt=prompt,
+                        model_name=model_name,
+                        image_data=media_bytes if has_multimedia else None,
+                        temperature=0.7
+                    )
+                else:
+                    # Use fallback
+                    response_text = generate_text_fallback(prompt)
+                
+                # Add AI response to chat
+                st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
+                
+                # Clear the input area (using proper Streamlit session state method)
+                st.session_state["tutor_input"] = ""
+                
+                # Update display
+                st.rerun()
+            
+            except Exception as e:
+                error_message = f"I apologize, but I encountered an error: {str(e)}"
+                st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
+                st.rerun()
+
+# Document Analysis tab
+with selected_tab[1]:
+    if st.session_state.current_mode != "Document Analysis":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Document Analysis"
+    
+    st.markdown("### AI-Powered Document Analysis")
+    st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
+    
+    # Add API selection for document analysis
+    api_choice = st.radio("Select AI model for document analysis:", 
+                          ["Groq (faster processing)", "Google Gemini (better for visuals)"])
+    
+    # Disable unavailable options
+    if api_choice.startswith("Groq") and not use_groq:
+        st.warning("Groq API is not available. Please install the groq package and provide your API key.")
+    
+    if api_choice.startswith("Google") and not use_gemini:
+        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
+    
+    uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
+    
+    # Add manual text input option as a fallback
+    manual_text_input = st.text_area(
+        "Or paste document content here:",
+        height=200, 
+        placeholder="Paste the content of your document here if file upload doesn't work properly..."
+    )
+    
+    if uploaded_file is not None or manual_text_input:
+        analysis_type = st.multiselect("Select analysis types:", 
+                                      ["Key Concepts Extraction", "Summary Generation", 
+                                       "Difficulty Assessment", "Concept Relations", 
+                                       "Generate Study Questions"])
+        
+        if st.button("Analyze Document", use_container_width=True):
+            with st.spinner("Analyzing document..."):
+                try:
+                    file_content = ""
+                    file_name = "pasted text"
+                    
+                    if uploaded_file is not None:
+                        file_name = uploaded_file.name
+                        # Get file content as bytes
+                        file_bytes = uploaded_file.getvalue()
+                        
+                        # Process based on file type
+                        if uploaded_file.type == "text/plain":
+                            # For text files
+                            file_content = file_bytes.decode('utf-8')
+                        elif uploaded_file.name.lower().endswith('.pdf'):
+                            # For PDF files
+                            try:
+                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                                for page in pdf_reader.pages:
+                                    extracted_text = page.extract_text()
+                                    if extracted_text:  # Only add if text was actually extracted
+                                        file_content += extracted_text + "\n"
+                                
+                                if not file_content.strip():
+                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
+                                    api_choice = "Groq (faster processing)"
+                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
+                            except Exception as pdf_error:
+                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
+                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
+                        else:
+                            # For other file types
+                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
+                    elif manual_text_input:
+                        # Use the pasted text instead
+                        file_content = manual_text_input
+                    
+                    # If the file content is large, trim it only if using Gemini (Groq can handle larger contexts)
+                    if api_choice == "Google Gemini (better for visuals)" and len(file_content) > 10000:
+                        file_content = file_content[:10000] + "... [content truncated due to size]"
+                    
+                    # Create prompt for document analysis
+                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
+                    analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
+                    analysis_prompt += "Here's the document content: " + file_content
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
+                    
+                    # Generate response based on selected API
+                    if api_choice.startswith("Groq") and use_groq:
+                        try:
+                            # Use Groq for document analysis
+                            with st.status("Processing with Groq..."):
+                                response_text = generate_content_with_groq(
+                                    prompt=analysis_prompt,
+                                    temperature=0.6
+                                )
+                        except Exception as e:
+                            st.error(f"Groq API error: {str(e)}")
+                            # Fallback to Gemini if available
+                            if use_gemini:
+                                st.info("Falling back to Gemini API...")
+                                response_text = generate_content(
+                                    prompt=analysis_prompt,
+                                    model_name=get_model_name("document"),
+                                    temperature=0.3
+                                )
+                            else:
+                                response_text = f"Error with Groq API: {str(e)}. Please check your API key or try again later."
+                    elif use_gemini:
+                        # Use Gemini for document analysis
+                        response_text = generate_content(
+                            prompt=analysis_prompt,
+                            model_name=get_model_name("document"),
+                            temperature=0.3
+                        )
+                    else:
+                        # Use fallback
+                        response_text = generate_text_fallback(analysis_prompt)
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                    
+                except Exception as e:
+                    st.error(f"Error analyzing document: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
 
 # Visual Learning tab
 with selected_tab[2]:
@@ -1167,264 +1413,18 @@ with selected_tab[4]:
             7. **Analyze multiple teaching samples** over time to track improvement
             """)
 
-# Main app modes
-modes = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator", "Educational Content Analysis"]
-selected_tab = st.tabs(modes)
-
-# Learning Assistant tab
-with selected_tab[0]:
-    if st.session_state.current_mode != "Learning Assistant":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Learning Assistant"
+# Main entry point - This will run the Streamlit app
+if __name__ == "__main__":
+    # Check for missing dependencies and display warning
+    if not HAS_GEMINI and not HAS_GROQ:
+        st.warning("""
+        ⚠️ Required API packages are missing. For full functionality, please install:
+        ```
+        pip install google-generativeai groq
+        ```
+        """)
     
-    st.markdown("### Your AI Learning Companion")
-    st.markdown("Ask any question about any subject, request explanations, or get help with homework")
-    
-    # Configure learning settings in an expandable section
-    with st.expander("Learning Settings", expanded=False):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            learning_level = st.selectbox("Learning Level:", 
-                                        ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"])
-            learning_style = st.selectbox("Learning Style:", 
-                                        ["Visual", "Textual", "Interactive", "Example-based", "Socratic"])
-        
-        with col2:
-            memory_option = st.checkbox("Enable Chat Memory", value=True, 
-                                     help="When enabled, the AI will remember previous exchanges in this conversation")
-    
-    # Display chat messages
-    chat_container = st.container()
-    with chat_container:
-        for message in st.session_state.tutor_messages:
-            if message["role"] == "user":
-                st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>EduGenius:</strong> {message['content']}</div>", unsafe_allow_html=True)
-    
-    # Chat input area with a more modern design
-    st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2 = st.columns([5, 1])
-    
-    with col1:
-        user_input = st.text_area("Your question:", height=80, key="tutor_input",
-                                placeholder="Type your question here... (e.g., Explain quantum entanglement in simple terms)")
-    
-    with col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        submit_button = st.button("Send", use_container_width=True, key="tutor_submit")
-        
-        # Add multimedia upload option
-        upload_option = st.selectbox("", ["Add Media", "Image"], key="upload_selector")
-    
-    # Handle file uploads
-    uploaded_file = None
-    if upload_option != "Add Media":
-        if upload_option == "Image":
-            uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
-        
-        if uploaded_file is not None:
-            # Display information about the uploaded file
-            st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
-            # Store the file reference in the session state for later use
-            st.session_state.current_upload = {
-                "file": uploaded_file,
-                "type": upload_option,
-                "name": uploaded_file.name
-            }
-            
-    # Processing user input
-    if submit_button and user_input:
-        # Add user message to chat
-        st.session_state.tutor_messages.append({"role": "user", "content": user_input})
-        
-        # Create system context based on selected options
-        system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
-        
-        # Create conversation history for context
-        conversation_history = ""
-        if memory_option and len(st.session_state.tutor_messages) > 1:
-            for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
-                role = "User" if msg["role"] == "user" else "EduGenius"
-                conversation_history += f"{role}: {msg['content']}\n\n"
-        
-        # Try to generate response
-        with st.spinner("Thinking..."):
-            try:
-                # Determine if we have multimedia
-                has_multimedia = False
-                media_bytes = None
-                
-                if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
-                    has_multimedia = True
-                    media_bytes = st.session_state.current_upload["file"].getvalue()
-                
-                # Create prompt with system context and conversation history
-                prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
-                
-                if has_multimedia:
-                    media_type = st.session_state.current_upload["type"].lower()
-                    prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
-                
-                if use_gemini:
-                    # Select appropriate model
-                    model_name = get_model_name("image" if has_multimedia else "chat")
-                    
-                    # Generate response
-                    response_text = generate_content(
-                        prompt=prompt,
-                        model_name=model_name,
-                        image_data=media_bytes if has_multimedia else None,
-                        temperature=0.7
-                    )
-                else:
-                    # Use fallback
-                    response_text = generate_text_fallback(prompt)
-                
-                # Add AI response to chat
-                st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
-                
-                # Clear the input area (using proper Streamlit session state method)
-                st.session_state["tutor_input"] = ""
-                
-                # Update display
-                st.rerun()
-            
-            except Exception as e:
-                error_message = f"I apologize, but I encountered an error: {str(e)}"
-                st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
-                st.rerun()
-
-# Document Analysis tab
-with selected_tab[1]:
-    if st.session_state.current_mode != "Document Analysis":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Document Analysis"
-    
-    st.markdown("### AI-Powered Document Analysis")
-    st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
-    
-    # Add API selection for document analysis
-    api_choice = st.radio("Select AI model for document analysis:", 
-                          ["Groq (faster processing)", "Google Gemini (better for visuals)"])
-    
-    # Disable unavailable options
-    if api_choice.startswith("Groq") and not use_groq:
-        st.warning("Groq API is not available. Please install the groq package and provide your API key.")
-    
-    if api_choice.startswith("Google") and not use_gemini:
-        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
-    
-    uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
-    
-    # Add manual text input option as a fallback
-    manual_text_input = st.text_area(
-        "Or paste document content here:",
-        height=200, 
-        placeholder="Paste the content of your document here if file upload doesn't work properly..."
-    )
-    
-    if uploaded_file is not None or manual_text_input:
-        analysis_type = st.multiselect("Select analysis types:", 
-                                      ["Key Concepts Extraction", "Summary Generation", 
-                                       "Difficulty Assessment", "Concept Relations", 
-                                       "Generate Study Questions"])
-        
-        if st.button("Analyze Document", use_container_width=True):
-            with st.spinner("Analyzing document..."):
-                try:
-                    file_content = ""
-                    file_name = "pasted text"
-                    
-                    if uploaded_file is not None:
-                        file_name = uploaded_file.name
-                        # Get file content as bytes
-                        file_bytes = uploaded_file.getvalue()
-                        
-                        # Process based on file type
-                        if uploaded_file.type == "text/plain":
-                            # For text files
-                            file_content = file_bytes.decode('utf-8')
-                        elif uploaded_file.name.lower().endswith('.pdf'):
-                            # For PDF files
-                            try:
-                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-                                for page in pdf_reader.pages:
-                                    extracted_text = page.extract_text()
-                                    if extracted_text:  # Only add if text was actually extracted
-                                        file_content += extracted_text + "\n"
-                                
-                                if not file_content.strip():
-                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
-                                    api_choice = "Groq (faster processing)"
-                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
-                            except Exception as pdf_error:
-                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
-                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
-                        else:
-                            # For other file types
-                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
-                    elif manual_text_input:
-                        # Use the pasted text instead
-                        file_content = manual_text_input
-                    
-                    # If the file content is large, trim it only if using Gemini (Groq can handle larger contexts)
-                    if api_choice == "Google Gemini (better for visuals)" and len(file_content) > 10000:
-                        file_content = file_content[:10000] + "... [content truncated due to size]"
-                    
-                    # Create prompt for document analysis
-                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
-                    analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
-                    analysis_prompt += "Here's the document content: " + file_content
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
-                    
-                    # Generate response based on selected API
-                    if api_choice.startswith("Groq") and use_groq:
-                        try:
-                            # Use Groq for document analysis
-                            with st.status("Processing with Groq..."):
-                                response_text = generate_content_with_groq(
-                                    prompt=analysis_prompt,
-                                    temperature=0.6
-                                )
-                        except Exception as e:
-                            st.error(f"Groq API error: {str(e)}")
-                            # Fallback to Gemini if available
-                            if use_gemini:
-                                st.info("Falling back to Gemini API...")
-                                response_text = generate_content(
-                                    prompt=analysis_prompt,
-                                    model_name=get_model_name("document"),
-                                    temperature=0.3
-                                )
-                            else:
-                                response_text = f"Error with Groq API: {str(e)}. Please check your API key or try again later."
-                    elif use_gemini:
-                        # Use Gemini for document analysis
-                        response_text = generate_content(
-                            prompt=analysis_prompt,
-                            model_name=get_model_name("document"),
-                            temperature=0.3
-                        )
-                    else:
-                        # Use fallback
-                        response_text = generate_text_fallback(analysis_prompt)
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                    
-                except Exception as e:
-                    st.error(f"Error analyzing document: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")
+    # Print startup message to console
+    logger.info("EduGenius started successfully")
+    logger.info(f"Gemini API available: {use_gemini}")
+    logger.info(f"Groq API available: {use_groq}")
