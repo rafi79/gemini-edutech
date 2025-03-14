@@ -198,15 +198,8 @@ def get_model_name(task_type="chat"):
     Returns:
     String with the model name to use
     """
-    # For multimedia tasks, use Gemini 2.0 flash which has multimodal capabilities
-    if task_type in ["image", "audio", "video"]:
-        return "gemini-2.0-flash"
-    # For document analysis requiring more reasoning
-    elif task_type == "document":
-        return "gemini-2.0-flash"
-    # Default chat model
-    else:
-        return "gemini-2.0-flash"
+    # For all tasks, use Gemini 2.0 flash which has multimodal capabilities
+    return "gemini-2.0-flash"
 
 # Function to check if Gemini API is properly set up for multimedia
 def check_gemini_multimodal_support():
@@ -698,17 +691,30 @@ with selected_tab[0]:
         submit_button = st.button("Send", use_container_width=True, key="tutor_submit")
         
         # Add multimedia upload option
-        upload_option = st.selectbox("", ["Add Media", "Image"], key="upload_selector")
+        upload_option = st.selectbox("", ["Add Media", "Image", "Audio", "Video"], key="upload_selector")
     
     # Handle file uploads
     uploaded_file = None
     if upload_option != "Add Media":
         if upload_option == "Image":
             uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
+        elif upload_option == "Audio":
+            uploaded_file = st.file_uploader("Upload audio:", type=["mp3", "wav", "m4a"], key="chat_audio_upload")
+        elif upload_option == "Video":
+            uploaded_file = st.file_uploader("Upload video:", type=["mp4", "mov", "webm"], key="chat_video_upload")
         
         if uploaded_file is not None:
             # Display information about the uploaded file
             st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
+            
+            # Display preview when possible
+            if upload_option == "Image":
+                st.image(uploaded_file, caption=f"Uploaded: {uploaded_file.name}", use_column_width=True)
+            elif upload_option == "Audio":
+                st.audio(uploaded_file)
+            elif upload_option == "Video":
+                st.video(uploaded_file)
+            
             # Store the file reference in the session state for later use
             st.session_state.current_upload = {
                 "file": uploaded_file,
@@ -737,29 +743,53 @@ with selected_tab[0]:
                 # Determine if we have multimedia
                 has_multimedia = False
                 media_bytes = None
+                media_type = None
                 
                 if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
                     has_multimedia = True
                     media_bytes = st.session_state.current_upload["file"].getvalue()
+                    media_type = st.session_state.current_upload["type"].lower()
                 
                 # Create prompt with system context and conversation history
                 prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
                 
                 if has_multimedia:
-                    media_type = st.session_state.current_upload["type"].lower()
                     prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
                 
                 if use_gemini:
-                    # Select appropriate model
-                    model_name = get_model_name("image" if has_multimedia else "chat")
+                    # Use Gemini 2.0 Flash for all types of content
+                    model_name = "gemini-2.0-flash"
                     
-                    # Generate response
-                    response_text = generate_content(
-                        prompt=prompt,
-                        model_name=model_name,
-                        image_data=media_bytes if has_multimedia else None,
-                        temperature=0.7
-                    )
+                    # Generate response with appropriate multimedia data
+                    if has_multimedia:
+                        if media_type == "image":
+                            response_text = generate_content(
+                                prompt=prompt,
+                                model_name=model_name,
+                                image_data=media_bytes,
+                                temperature=0.7
+                            )
+                        elif media_type == "audio":
+                            response_text = generate_content(
+                                prompt=prompt,
+                                model_name=model_name,
+                                audio_data=media_bytes,
+                                temperature=0.7
+                            )
+                        elif media_type == "video":
+                            response_text = generate_content(
+                                prompt=prompt,
+                                model_name=model_name,
+                                video_data=media_bytes,
+                                temperature=0.7
+                            )
+                    else:
+                        # Text-only response
+                        response_text = generate_content(
+                            prompt=prompt,
+                            model_name=model_name,
+                            temperature=0.7
+                        )
                 else:
                     # Use fallback
                     response_text = generate_text_fallback(prompt)
@@ -767,8 +797,10 @@ with selected_tab[0]:
                 # Add AI response to chat
                 st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
                 
-                # Clear the input area (using proper Streamlit session state method)
+                # Clear the input area and reset uploaded file (using proper Streamlit session state method)
                 st.session_state["tutor_input"] = ""
+                if has_multimedia:
+                    st.session_state.current_upload = None
                 
                 # Update display
                 st.rerun()
