@@ -165,14 +165,19 @@ if HAS_GEMINI:
                 if any("gemini" in model.name.lower() for model in test_models):
                     use_gemini = True
                     logger.info("Successfully connected to Google Gemini API")
+                    st.toast("✅ Connected to Gemini API")
                 else:
                     logger.warning("No Gemini models found in available models")
+                    st.warning("⚠️ No Gemini models found. Check API key and try again.")
             except Exception as e:
                 logger.error(f"Error verifying Gemini models: {str(e)}")
+                st.error(f"Error connecting to Gemini API: {str(e)}")
         else:
             logger.warning("Gemini API key not provided")
+            st.warning("⚠️ Gemini API key not provided")
     except Exception as e:
         logger.error(f"Failed to initialize Gemini API: {str(e)}")
+        st.error(f"Failed to initialize Gemini API: {str(e)}")
 
 if HAS_GROQ:
     try:
@@ -182,10 +187,13 @@ if HAS_GROQ:
             # Verify API connectivity (lightweight check)
             use_groq = True
             logger.info("Successfully initialized Groq API client")
+            st.toast("✅ Connected to Groq API")
         else:
             logger.warning("Groq API key not provided or invalid format")
+            st.warning("⚠️ Groq API key not provided or invalid format")
     except Exception as e:
         logger.error(f"Failed to initialize Groq API: {str(e)}")
+        st.error(f"Failed to initialize Groq API: {str(e)}")
 
 # Function to get the appropriate model based on task
 def get_model_name(task_type="chat"):
@@ -644,13 +652,18 @@ with st.sidebar:
 
 # Define tab names and create tabs
 tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "DeepSeek Reasoning", "Quiz Generator", "Educational Content Analysis"]
-selected_tab = st.tabs(tab_names)
+tab_index = st.tabs(tab_names)
+
+# Make sure we have session state to track tab switching
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = 0
 
 # Learning Assistant tab
-with selected_tab[0]:
+with tab_index[0]:
     if st.session_state.current_mode != "Learning Assistant":
         st.session_state.chat_history = []
         st.session_state.current_mode = "Learning Assistant"
+        st.session_state.active_tab = 0
     
     st.markdown("### Your AI Learning Companion")
     st.markdown("Ask any question about any subject, request explanations, or get help with homework")
@@ -708,12 +721,15 @@ with selected_tab[0]:
             st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
             
             # Display preview when possible
-            if upload_option == "Image":
-                st.image(uploaded_file, caption=f"Uploaded: {uploaded_file.name}", use_column_width=True)
-            elif upload_option == "Audio":
-                st.audio(uploaded_file)
-            elif upload_option == "Video":
-                st.video(uploaded_file)
+            try:
+                if upload_option == "Image":
+                    st.image(uploaded_file, caption=f"Uploaded: {uploaded_file.name}", use_column_width=True)
+                elif upload_option == "Audio":
+                    st.audio(uploaded_file)
+                elif upload_option == "Video":
+                    st.video(uploaded_file)
+            except Exception as e:
+                st.warning(f"Could not display preview for {uploaded_file.name}: {str(e)}")
             
             # Store the file reference in the session state for later use
             st.session_state.current_upload = {
@@ -760,36 +776,49 @@ with selected_tab[0]:
                     # Use Gemini 2.0 Flash for all types of content
                     model_name = "gemini-2.0-flash"
                     
-                    # Generate response with appropriate multimedia data
-                    if has_multimedia:
+                # Generate response with appropriate multimedia data
+                if has_multimedia:
+                    try:
                         if media_type == "image":
-                            response_text = generate_content(
-                                prompt=prompt,
-                                model_name=model_name,
-                                image_data=media_bytes,
-                                temperature=0.7
-                            )
+                            with st.status("Processing image with Gemini..."):
+                                response_text = generate_content(
+                                    prompt=prompt,
+                                    model_name=model_name,
+                                    image_data=media_bytes,
+                                    temperature=0.7
+                                )
                         elif media_type == "audio":
-                            response_text = generate_content(
-                                prompt=prompt,
-                                model_name=model_name,
-                                audio_data=media_bytes,
-                                temperature=0.7
-                            )
+                            with st.status("Processing audio with Gemini..."):
+                                response_text = generate_content(
+                                    prompt=prompt,
+                                    model_name=model_name,
+                                    audio_data=media_bytes,
+                                    temperature=0.7
+                                )
                         elif media_type == "video":
-                            response_text = generate_content(
-                                prompt=prompt,
-                                model_name=model_name,
-                                video_data=media_bytes,
-                                temperature=0.7
-                            )
-                    else:
-                        # Text-only response
+                            with st.status("Processing video with Gemini..."):
+                                response_text = generate_content(
+                                    prompt=prompt,
+                                    model_name=model_name,
+                                    video_data=media_bytes,
+                                    temperature=0.7
+                                )
+                    except Exception as media_error:
+                        logger.error(f"Error processing {media_type}: {str(media_error)}")
+                        st.error(f"Error processing {media_type}. Attempting text-only response.")
+                        # Fallback to text-only if media processing fails
                         response_text = generate_content(
-                            prompt=prompt,
+                            prompt=prompt + f"\n\nNote: I tried to analyze the {media_type} but was unable to process it.",
                             model_name=model_name,
                             temperature=0.7
                         )
+                else:
+                    # Text-only response
+                    response_text = generate_content(
+                        prompt=prompt,
+                        model_name=model_name,
+                        temperature=0.7
+                    )
                 else:
                     # Use fallback
                     response_text = generate_text_fallback(prompt)
