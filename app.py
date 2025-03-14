@@ -753,88 +753,88 @@ with tab_index[0]:
                 role = "User" if msg["role"] == "user" else "EduGenius"
                 conversation_history += f"{role}: {msg['content']}\n\n"
         
-        # Try to generate response
-        with st.spinner("Thinking..."):
-            try:
-                # Determine if we have multimedia
-                has_multimedia = False
-                media_bytes = None
-                media_type = None
-                
-                if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
-                    has_multimedia = True
-                    media_bytes = st.session_state.current_upload["file"].getvalue()
-                    media_type = st.session_state.current_upload["type"].lower()
-                
-                # Create prompt with system context and conversation history
-                prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
-                
-                if has_multimedia:
-                    prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
-                
-                if use_gemini:
-                    # Use Gemini 2.0 Flash for all types of content
-                    model_name = "gemini-2.0-flash"
-                    
-                # Generate response with appropriate multimedia data
-                if has_multimedia:
-                    try:
-                        if media_type == "image":
-                            with st.status("Processing image with Gemini..."):
-                                response_text = generate_content(
-                                    prompt=prompt,
-                                    model_name=model_name,
-                                    image_data=media_bytes,
-                                    temperature=0.7
-                                )
-                        elif media_type == "audio":
-                            with st.status("Processing audio with Gemini..."):
-                                response_text = generate_content(
-                                    prompt=prompt,
-                                    model_name=model_name,
-                                    audio_data=media_bytes,
-                                    temperature=0.7
-                                )
-                        elif media_type == "video":
-                            with st.status("Processing video with Gemini..."):
-                                response_text = generate_content(
-                                    prompt=prompt,
-                                    model_name=model_name,
-                                    video_data=media_bytes,
-                                    temperature=0.7
-                                )
-                    except Exception as media_error:
-                        logger.error(f"Error processing {media_type}: {str(media_error)}")
-                        st.error(f"Error processing {media_type}. Attempting text-only response.")
-                        # Fallback to text-only if media processing fails
-                        response_text = generate_content(
-                            prompt=prompt + f"\n\nNote: I tried to analyze the {media_type} but was unable to process it.",
-                            model_name=model_name,
-                            temperature=0.7
-                        )
-                else:
-                    # Text-only response
+       # Try to generate response
+with st.spinner("Thinking..."):
+    try:
+        # Determine if we have multimedia
+        has_multimedia = False
+        media_bytes = None
+        media_type = None
+        
+        if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
+            has_multimedia = True
+            media_bytes = st.session_state.current_upload["file"].getvalue()
+            media_type = st.session_state.current_upload["type"].lower()
+        
+        # Create prompt with system context and conversation history
+        prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
+        
+        if has_multimedia:
+            prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
+        
+        if use_gemini:
+            # Use Gemini 2.0 Flash for all types of content
+            model_name = "gemini-2.0-flash"
+            
+            # Generate response with appropriate multimedia data
+            if has_multimedia:
+                try:
+                    if media_type == "image":
+                        with st.status("Processing image with Gemini..."):
+                            response_text = generate_content(
+                                prompt=prompt,
+                                model_name=model_name,
+                                image_data=media_bytes,
+                                temperature=0.7
+                            )
+                    elif media_type == "audio":
+                        with st.status("Processing audio with Gemini..."):
+                            response_text = generate_content(
+                                prompt=prompt,
+                                model_name=model_name,
+                                audio_data=media_bytes,
+                                temperature=0.7
+                            )
+                    elif media_type == "video":
+                        with st.status("Processing video with Gemini..."):
+                            response_text = generate_content(
+                                prompt=prompt,
+                                model_name=model_name,
+                                video_data=media_bytes,
+                                temperature=0.7
+                            )
+                except Exception as media_error:
+                    logger.error(f"Error processing {media_type}: {str(media_error)}")
+                    st.error(f"Error processing {media_type}. Attempting text-only response.")
+                    # Fallback to text-only if media processing fails
                     response_text = generate_content(
-                        prompt=prompt,
+                        prompt=prompt + f"\n\nNote: I tried to analyze the {media_type} but was unable to process it.",
                         model_name=model_name,
                         temperature=0.7
                     )
-                else:
-                    # Use fallback
-                    response_text = generate_text_fallback(prompt)
-                
-                # Add AI response to chat
-                st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
-                
-                # Clear the input area and reset uploaded file (using proper Streamlit session state method)
-                st.session_state["tutor_input"] = ""
-                if has_multimedia:
-                    st.session_state.current_upload = None
-                
-                # Update display
-                st.rerun()
-            
-            except Exception as e:
-                error_message = f"I apologize, but I encountered an error: {str(e)}"
-                st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
-                st.rerun()
+            else:
+                # Text-only response
+                response_text = generate_content(
+                    prompt=prompt,
+                    model_name=model_name,
+                    temperature=0.7
+                )
+        else:
+            # Use fallback
+            response_text = generate_text_fallback(prompt)
+        
+        # Add AI response to chat
+        st.session_state.tutor_messages.append({"role": "assistant", "content": response_text})
+        
+        # Clear the input area and reset uploaded file (using proper Streamlit session state method)
+        st.session_state["tutor_input"] = ""
+        if has_multimedia:
+            st.session_state.current_upload = None
+        
+        # Update display
+        st.rerun()
+    
+    except Exception as e:
+        error_message = f"I apologize, but I encountered an error: {str(e)}"
+        st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
+        st.rerun()
