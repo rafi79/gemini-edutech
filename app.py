@@ -718,12 +718,12 @@ with selected_tab[0]:
             
     # Processing user input
     # Processing user input
-      if submit_button and user_input:
-    # Add user message to chat
+        if submit_button and user_input:
+    #   Add user message to chat
            st.session_state.tutor_messages.append({"role": "user", "content": user_input})
     
     # Create system context based on selected options
-        system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
+            system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
     
     # Create conversation history for context
     conversation_history = ""
