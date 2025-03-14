@@ -653,6 +653,257 @@ with st.sidebar:
 tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "DeepSeek Reasoning", "Quiz Generator", "Educational Content Analysis"]
 selected_tab = st.tabs(tab_names)
 
+# Learning Assistant tab
+with selected_tab[0]:
+    if st.session_state.current_mode != "Learning Assistant":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Learning Assistant"
+    
+    st.markdown("### Your AI Learning Companion")
+    st.markdown("Ask any question about any subject, request explanations, or get help with homework")
+    
+    # Configure learning settings in an expandable section
+    with st.expander("Learning Settings", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            learning_level = st.selectbox("Learning Level:", 
+                                        ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"])
+            learning_style = st.selectbox("Learning Style:", 
+                                        ["Visual", "Textual", "Interactive", "Example-based", "Socratic"])
+        
+        with col2:
+            memory_option = st.checkbox("Enable Chat Memory", value=True, 
+                                     help="When enabled, the AI will remember previous exchanges in this conversation")
+    
+    # Display chat messages
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.tutor_messages:
+            if message["role"] == "user":
+                st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>EduGenius:</strong> {message['content']}</div>", unsafe_allow_html=True)
+    
+    # Chat input area with a more modern design
+    st.markdown("<br>", unsafe_allow_html=True)
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        user_input = st.text_area("Your question:", height=80, key="tutor_input",
+                                placeholder="Type your question here... (e.g., Explain quantum entanglement in simple terms)")
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        submit_button = st.button("Send", use_container_width=True, key="tutor_submit")
+        
+        # Add multimedia upload option
+        upload_option = st.selectbox("", ["Add Media", "Image"], key="upload_selector")
+    
+    # Handle file uploads
+    uploaded_file = None
+    if upload_option != "Add Media":
+        if upload_option == "Image":
+            uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
+        
+        if uploaded_file is not None:
+            # Display information about the uploaded file
+            st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
+            # Store the file reference in the session state for later use
+            st.session_state.current_upload = {
+                "file": uploaded_file,
+                "type": upload_option,
+                "name": uploaded_file.name
+            }
+            
+    # Processing user input
+    if submit_button and user_input:
+        # Add user message to chat
+        st.session_state.tutor_messages.append({"role": "user", "content": user_input})
+        
+        # Create system context based on selected options
+        system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
+        
+        # Create conversation history for context
+        conversation_history = ""
+        if memory_option and len(st.session_state.tutor_messages) > 1:
+            for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
+                role = "User" if msg["role"] == "user" else "EduGenius"
+                conversation_history += f"{role}: {msg['content']}\n\n"
+        
+        # Try to generate response
+        with st.spinner("Thinking..."):
+        if analyze_button and (video_file or audio_file):
+        with st.spinner("Analyzing educational content..."):
+            try:
+                # Create content analyzer
+                content_analyzer = EducationalContentAnalyzer()
+                
+                # Prepare context information dictionary
+                context_info = {
+                    "contexts": context_options,
+                    "focus_areas": focus_areas,
+                    "thoroughness": thoroughness
+                }
+                
+                # Display progress information
+                analysis_progress = st.progress(0)
+                status_text = st.empty()
+                
+                # Update status
+                status_text.text("Initializing analysis...")
+                analysis_progress.progress(10)
+                
+                # Process content with context awareness
+                if video_file and audio_file:
+                    status_text.text("Analyzing video and audio content...")
+                    analysis_progress.progress(25)
+                elif video_file:
+                    status_text.text("Analyzing video content...")
+                    analysis_progress.progress(25)
+                else:
+                    status_text.text("Analyzing audio content...")
+                    analysis_progress.progress(25)
+                
+                # Perform the analysis with context information
+                results = content_analyzer.analyze_content(video_file, audio_file, context_info)
+                
+                # Update progress
+                status_text.text("Processing results...")
+                analysis_progress.progress(75)
+                
+                # Store results in session state for persistence
+                st.session_state.edu_results = results
+                
+                # Complete progress
+                analysis_progress.progress(100)
+                status_text.text("Analysis complete!")
+                
+                # Clear progress indicators after a moment
+                time.sleep(1)
+                status_text.empty()
+                analysis_progress.empty()
+                
+                # Display results in a styled container
+                st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
+                st.markdown('<h2 class="analysis-title">Educational Content Analysis Results</h2>', unsafe_allow_html=True)
+                
+                # Add timestamp and context
+                st.markdown(f"**Analysis time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                st.markdown(f"**Educational contexts:** {', '.join(context_options)}")
+                st.markdown(f"**Focus areas:** {', '.join(focus_areas)}")
+                st.markdown(f"**Analysis level:** {thoroughness}")
+                
+                # Video results
+                if video_file and results.get("video_analysis"):
+                    st.subheader("📹 Video Analysis")
+                    st.markdown('<div class="analysis-content">', unsafe_allow_html=True)
+                    for analysis in results["video_analysis"]:
+                        st.markdown(analysis)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Audio results
+                if audio_file and results.get("audio_analysis"):
+                    st.subheader("🔊 Audio Analysis")
+                    st.markdown('<div class="analysis-content">', unsafe_allow_html=True)
+                    for analysis in results["audio_analysis"]:
+                        st.markdown(analysis)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Prepare download report with enhanced formatting
+                report_content = f"""
+                # Educational Content Analysis Report
+                
+                ## Analysis Overview
+                - **Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                - **Educational Contexts:** {', '.join(context_options)}
+                - **Focus Areas:** {', '.join(focus_areas)}
+                - **Analysis Level:** {thoroughness}
+                
+                ## Files Analyzed
+                {f"- **Video:** {video_file
+
+# Quiz Generator tab
+with selected_tab[4]:
+    if st.session_state.current_mode != "Quiz Generator":
+        st.session_state.current_mode = "Quiz Generator"
+        
+    st.markdown("### AI Quiz Generator")
+    st.markdown("Create custom quizzes for any subject and learning level")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        quiz_subject = st.text_input("Subject or topic:", placeholder="E.g., World War II, Photosynthesis, Calculus")
+        quiz_level = st.select_slider(
+            "Difficulty level:",
+            options=["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"],
+            value="High School"
+        )
+    
+    with col2:
+        quiz_type = st.selectbox(
+            "Question type:",
+            ["Multiple Choice", "True/False", "Short Answer", "Fill in the Blank", "Mixed"]
+        )
+        question_count = st.slider("Number of questions:", min_value=3, max_value=20, value=5)
+    
+    # Additional options
+    with st.expander("Advanced Options"):
+        include_answers = st.checkbox("Include answers", value=True)
+        include_explanations = st.checkbox("Include explanations", value=True)
+        specific_topics = st.text_area("Focus on specific subtopics (optional):", 
+                                      placeholder="E.g., 'Focus on European theater' or 'Only cover derivatives'")
+    
+    # Generate quiz button
+    if st.button("Generate Quiz", use_container_width=True):
+        if not quiz_subject:
+            st.warning("Please enter a subject or topic for the quiz.")
+        else:
+            with st.spinner("Creating your custom quiz..."):
+                try:
+                    # Build prompt
+                    prompt = f"Create a {quiz_level} level quiz about {quiz_subject} with {question_count} {quiz_type} questions. "
+                    
+                    if specific_topics:
+                        prompt += f"Focus on these specific subtopics: {specific_topics}. "
+                    
+                    prompt += "Format the quiz nicely with markdown. "
+                    
+                    if include_answers:
+                        prompt += "Include the correct answers. "
+                    
+                    if include_explanations:
+                        prompt += "Provide brief explanations for each answer. "
+                    
+                    # Get response
+                    if use_gemini:
+                        response = generate_content(
+                            prompt=prompt,
+                            model_name=get_model_name("chat"),
+                            temperature=0.7
+                        )
+                    else:
+                        response = generate_text_fallback(prompt)
+                    
+                    # Display quiz
+                    st.markdown("## Your Custom Quiz")
+                    st.markdown(response)
+                    
+                    # Add download option
+                    quiz_filename = f"{quiz_subject.replace(' ', '_').lower()}_quiz.md"
+                    st.download_button(
+                        label="Download Quiz",
+                        data=response,
+                        file_name=quiz_filename,
+                        mime="text/markdown"
+                    )
+                    
+                except Exception as e:
+                    st.error(f"Error generating quiz: {str(e)}")
+
 # Educational Content Analysis tab
 with selected_tab[5]:
     if st.session_state.current_mode != "Educational Content Analysis":
@@ -794,136 +1045,6 @@ with selected_tab[5]:
     analyze_button = st.button("Analyze Educational Content", 
                               use_container_width=True,
                               disabled=not (video_file or audio_file) or not use_gemini)
-    
-    if analyze_button and (video_file or audio_file):
-        with st.spinner("Analyzing educational content..."):
-            try:
-                # Create content analyzer
-                content_analyzer = EducationalContentAnalyzer()
-                
-                # Prepare context information dictionary
-                context_info = {
-                    "contexts": context_options,
-                    "focus_areas": focus_areas,
-                    "thoroughness": thoroughness
-                }
-                
-                # Display progress information
-                analysis_progress = st.progress(0)
-                status_text = st.empty()
-                
-                # Update status
-                status_text.text("Initializing analysis...")
-                analysis_progress.progress(10)
-                
-                # Process content with context awareness
-                if video_file and audio_file:
-                    status_text
-
-# Document Analysis tab
-with selected_tab[1]:
-    if st.session_state.current_mode != "Document Analysis":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Document Analysis"
-    
-    st.markdown("### AI-Powered Document Analysis")
-    st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
-    
-    # Use Gemini for document analysis
-    if not use_gemini:
-        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
-    
-    uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
-    
-    # Add manual text input option as a fallback
-    manual_text_input = st.text_area(
-        "Or paste document content here:",
-        height=200, 
-        placeholder="Paste the content of your document here if file upload doesn't work properly..."
-    )
-    
-    if uploaded_file is not None or manual_text_input:
-        analysis_type = st.multiselect("Select analysis types:", 
-                                      ["Key Concepts Extraction", "Summary Generation", 
-                                       "Difficulty Assessment", "Concept Relations", 
-                                       "Generate Study Questions"])
-        
-        if st.button("Analyze Document", use_container_width=True):
-            with st.spinner("Analyzing document..."):
-                try:
-                    file_content = ""
-                    file_name = "pasted text"
-                    
-                    if uploaded_file is not None:
-                        file_name = uploaded_file.name
-                        # Get file content as bytes
-                        file_bytes = uploaded_file.getvalue()
-                        
-                        # Process based on file type
-                        if uploaded_file.type == "text/plain":
-                            # For text files
-                            file_content = file_bytes.decode('utf-8')
-                        elif uploaded_file.name.lower().endswith('.pdf'):
-                            # For PDF files
-                            try:
-                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-                                for page in pdf_reader.pages:
-                                    extracted_text = page.extract_text()
-                                    if extracted_text:  # Only add if text was actually extracted
-                                        file_content += extracted_text + "\n"
-                                
-                                if not file_content.strip():
-                                    st.warning("The PDF appears to be image-based or has no extractable text.")
-                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
-                            except Exception as pdf_error:
-                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
-                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
-                        else:
-                            # For other file types
-                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
-                    elif manual_text_input:
-                        # Use the pasted text instead
-                        file_content = manual_text_input
-                    
-                    # If the file content is large, trim it
-                    if len(file_content) > 10000:
-                        file_content = file_content[:10000] + "... [content truncated due to size]"
-                    
-                    # Create prompt for document analysis
-                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
-                    analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
-                    analysis_prompt += "Here's the document content: " + file_content
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
-                    
-                    # Generate response using Gemini for document analysis
-                    if use_gemini:
-                        with st.status("Processing with Gemini..."):
-                            response_text = generate_content(
-                                prompt=analysis_prompt,
-                                model_name=get_model_name("document"),
-                                temperature=0.3
-                            )
-                    else:
-                        # Use fallback
-                        response_text = generate_text_fallback(analysis_prompt)
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                    
-                except Exception as e:
-                    st.error(f"Error analyzing document: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")
 
 # Visual Learning tab
 with selected_tab[2]:
@@ -1168,86 +1289,7 @@ with selected_tab[3]:
                 </ul>
                 <p>The assistant will reveal its reasoning process as it creates educational content.</p>
             </div>
-            """, unsafe_allow_html=True)
-
-# Quiz Generator tab
-with selected_tab[4]:
-    if st.session_state.current_mode != "Quiz Generator":
-        st.session_state.current_mode = "Quiz Generator"
-        
-    st.markdown("### AI Quiz Generator")
-    st.markdown("Create custom quizzes for any subject and learning level")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        quiz_subject = st.text_input("Subject or topic:", placeholder="E.g., World War II, Photosynthesis, Calculus")
-        quiz_level = st.select_slider(
-            "Difficulty level:",
-            options=["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"],
-            value="High School"
-        )
-    
-    with col2:
-        quiz_type = st.selectbox(
-            "Question type:",
-            ["Multiple Choice", "True/False", "Short Answer", "Fill in the Blank", "Mixed"]
-        )
-        question_count = st.slider("Number of questions:", min_value=3, max_value=20, value=5)
-    
-    # Additional options
-    with st.expander("Advanced Options"):
-        include_answers = st.checkbox("Include answers", value=True)
-        include_explanations = st.checkbox("Include explanations", value=True)
-        specific_topics = st.text_area("Focus on specific subtopics (optional):", 
-                                      placeholder="E.g., 'Focus on European theater' or 'Only cover derivatives'")
-    
-    # Generate quiz button
-    if st.button("Generate Quiz", use_container_width=True):
-        if not quiz_subject:
-            st.warning("Please enter a subject or topic for the quiz.")
-        else:
-            with st.spinner("Creating your custom quiz..."):
-                try:
-                    # Build prompt
-                    prompt = f"Create a {quiz_level} level quiz about {quiz_subject} with {question_count} {quiz_type} questions. "
-                    
-                    if specific_topics:
-                        prompt += f"Focus on these specific subtopics: {specific_topics}. "
-                    
-                    prompt += "Format the quiz nicely with markdown. "
-                    
-                    if include_answers:
-                        prompt += "Include the correct answers. "
-                    
-                    if include_explanations:
-                        prompt += "Provide brief explanations for each answer. "
-                    
-                    # Get response
-                    if use_gemini:
-                        response = generate_content(
-                            prompt=prompt,
-                            model_name=get_model_name("chat"),
-                            temperature=0.7
-                        )
-                    else:
-                        response = generate_text_fallback(prompt)
-                    
-                    # Display quiz
-                    st.markdown("## Your Custom Quiz")
-                    st.markdown(response)
-                    
-                    # Add download option
-                    quiz_filename = f"{quiz_subject.replace(' ', '_').lower()}_quiz.md"
-                    st.download_button(
-                        label="Download Quiz",
-                        data=response,
-                        file_name=quiz_filename,
-                        mime="text/markdown"
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Error generating quiz: {str(e)}")#!/usr/bin/env python3
+            """, unsafe_allow_html=True)#!/usr/bin/env python3
 # EduGenius - AI Learning Assistant with Multimedia Analysis
 
 import streamlit as st
@@ -1980,8 +2022,6 @@ with selected_tab[0]:
                 role = "User" if msg["role"] == "user" else "EduGenius"
                 conversation_history += f"{role}: {msg['content']}\n\n"
         
-        # Try to generate response
-        with st.spinner("Thinking..."):
             try:
                 # Determine if we have multimedia
                 has_multimedia = False
@@ -2026,3 +2066,108 @@ with selected_tab[0]:
                 error_message = f"I apologize, but I encountered an error: {str(e)}"
                 st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
                 st.rerun()
+
+# Document Analysis tab
+with selected_tab[1]:
+    if st.session_state.current_mode != "Document Analysis":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Document Analysis"
+    
+    st.markdown("### AI-Powered Document Analysis")
+    st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
+    
+    # Use Gemini for document analysis
+    if not use_gemini:
+        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
+    
+    uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
+    
+    # Add manual text input option as a fallback
+    manual_text_input = st.text_area(
+        "Or paste document content here:",
+        height=200, 
+        placeholder="Paste the content of your document here if file upload doesn't work properly..."
+    )
+    
+    if uploaded_file is not None or manual_text_input:
+        analysis_type = st.multiselect("Select analysis types:", 
+                                      ["Key Concepts Extraction", "Summary Generation", 
+                                       "Difficulty Assessment", "Concept Relations", 
+                                       "Generate Study Questions"])
+        
+        if st.button("Analyze Document", use_container_width=True):
+            with st.spinner("Analyzing document..."):
+                try:
+                    file_content = ""
+                    file_name = "pasted text"
+                    
+                    if uploaded_file is not None:
+                        file_name = uploaded_file.name
+                        # Get file content as bytes
+                        file_bytes = uploaded_file.getvalue()
+                        
+                        # Process based on file type
+                        if uploaded_file.type == "text/plain":
+                            # For text files
+                            file_content = file_bytes.decode('utf-8')
+                        elif uploaded_file.name.lower().endswith('.pdf'):
+                            # For PDF files
+                            try:
+                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+                                for page in pdf_reader.pages:
+                                    extracted_text = page.extract_text()
+                                    if extracted_text:  # Only add if text was actually extracted
+                                        file_content += extracted_text + "\n"
+                                
+                                if not file_content.strip():
+                                    st.warning("The PDF appears to be image-based or has no extractable text.")
+                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
+                            except Exception as pdf_error:
+                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
+                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
+                        else:
+                            # For other file types
+                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
+                    elif manual_text_input:
+                        # Use the pasted text instead
+                        file_content = manual_text_input
+                    
+                    # If the file content is large, trim it
+                    if len(file_content) > 10000:
+                        file_content = file_content[:10000] + "... [content truncated due to size]"
+                    
+                    # Create prompt for document analysis
+                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
+                    analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
+                    analysis_prompt += "Here's the document content: " + file_content
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
+                    
+                    # Generate response using Gemini for document analysis
+                    if use_gemini:
+                        with st.status("Processing with Gemini..."):
+                            response_text = generate_content(
+                                prompt=analysis_prompt,
+                                model_name=get_model_name("document"),
+                                temperature=0.3
+                            )
+                    else:
+                        # Use fallback
+                        response_text = generate_text_fallback(analysis_prompt)
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                    
+                except Exception as e:
+                    st.error(f"Error analyzing document: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
