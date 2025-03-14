@@ -654,8 +654,6 @@ tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "Deep
 
 # Create tabs
 selected_tab = st.tabs(tab_names)
-
-# DeepSeek Reasoning Assistant tab (NEW)
 with selected_tab[3]:
     if st.session_state.current_mode != "DeepSeek Reasoning":
         st.session_state.current_mode = "DeepSeek Reasoning"
