@@ -1,734 +1,4 @@
-#!/usr/bin/env python3
-# EduGenius - AI Learning Assistant with Multimedia Analysis
-
-import streamlit as st
-import base64
-from PIL import Image
-import io
-import os
-import tempfile
-import warnings
-import json
-from datetime import datetime
-import logging
-import time
-
-# Try to import PyPDF2 for PDF processing
-try:
-    import PyPDF2
-except ImportError:
-    print("PyPDF2 not available. PDF processing will be limited.")
-
-# Optional imports for API integration
-try:
-    import google.generativeai as genai
-    HAS_GEMINI = True
-except ImportError:
-    HAS_GEMINI = False
-    print("Google Generative AI module not available.")
-
-try:
-    from groq import Groq
-    HAS_GROQ = True
-except ImportError:
-    HAS_GROQ = False
-    print("Groq API module not available.")
-
-# Suppress warnings
-warnings.filterwarnings('ignore')
-
-# Set page configuration
-st.set_page_config(
-    page_title="EduGenius - AI Learning Assistant", 
-    page_icon="🧠", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Apply custom CSS
-st.markdown("""
-<style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    .edu-header {
-        color: #4257b2;
-        font-size: 2.5rem;
-        font-weight: bold;
-        margin-bottom: 1rem;
-        text-align: center;
-    }
-    .edu-subheader {
-        color: #5a6275;
-        font-size: 1.2rem;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-    .feature-card {
-        background-color: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .feature-icon {
-        font-size: 2rem;
-        margin-bottom: 10px;
-        color: #4257b2;
-    }
-    .feature-title {
-        font-weight: bold;
-        color: #4257b2;
-        margin-bottom: 10px;
-    }
-    .submit-btn {
-        background-color: #4257b2;
-        color: white;
-        border-radius: 5px;
-        padding: 10px 20px;
-        font-weight: bold;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 24px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 5px 5px 0 0;
-        padding: 10px 16px;
-        font-weight: bold;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #4257b2 !important;
-        color: white !important;
-    }
-    .analysis-card {
-        background: linear-gradient(45deg, #f5f7ff, #e8eeff);
-        border-radius: 15px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .analysis-title {
-        color: #4257b2;
-        margin-bottom: 1rem;
-    }
-    .analysis-content {
-        background: rgba(255,255,255,0.7);
-        padding: 1rem;
-        border-radius: 8px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# API Configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDLPkZIKqjPzdawHnWjEFnX3h-pkML0vm0")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
-
-# Initialize API clients conditionally
-use_groq = False
-use_gemini = False
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-if HAS_GEMINI:
-    try:
-        # Check if API key is valid format (at least non-empty)
-        if GEMINI_API_KEY:
-            genai.configure(api_key=GEMINI_API_KEY)
-            # Verify API connectivity
-            try:
-                test_models = genai.list_models()
-                if any("gemini" in model.name.lower() for model in test_models):
-                    use_gemini = True
-                    logger.info("Successfully connected to Google Gemini API")
-                else:
-                    logger.warning("No Gemini models found in available models")
-            except Exception as e:
-                logger.error(f"Error verifying Gemini models: {str(e)}")
-        else:
-            logger.warning("Gemini API key not provided")
-    except Exception as e:
-        logger.error(f"Failed to initialize Gemini API: {str(e)}")
-
-if HAS_GROQ:
-    try:
-        # Check if API key is valid format
-        if GROQ_API_KEY and len(GROQ_API_KEY) > 10:
-            groq_client = Groq(api_key=GROQ_API_KEY)
-            # Verify API connectivity (lightweight check)
-            use_groq = True
-            logger.info("Successfully initialized Groq API client")
-        else:
-            logger.warning("Groq API key not provided or invalid format")
-    except Exception as e:
-        logger.error(f"Failed to initialize Groq API: {str(e)}")
-
-# Function to get the appropriate model based on task
-def get_model_name(task_type="chat"):
-    """
-    Return the appropriate Gemini model name based on the task type
-    
-    Parameters:
-    task_type: One of 'chat', 'image', 'audio', 'video', 'document'
-    
-    Returns:
-    String with the model name to use
-    """
-    # For multimedia tasks, use Gemini 2.0 flash which has multimodal capabilities
-    if task_type in ["image", "audio", "video"]:
-        return "gemini-2.0-flash"
-    # For document analysis requiring more reasoning
-    elif task_type == "document":
-        return "gemini-2.0-flash"
-    # Default chat model
-    else:
-        return "gemini-2.0-flash"
-
-# Function to check if Gemini API is properly set up for multimedia
-def check_gemini_multimodal_support():
-    """Verify if the current Gemini setup supports multimodal inputs"""
-    if not use_gemini:
-        return False
-        
-    try:
-        available_models = genai.list_models()
-        for model in available_models:
-            if "gemini-2.0" in model.name and "generateContent" in str(model.supported_generation_methods):
-                # Check if model supports multimodal inputs
-                if any(input_type for input_type in ["image", "video", "audio"] if input_type in str(model)):
-                    return True
-        return False
-    except Exception as e:
-        logger.error(f"Error checking multimodal support: {str(e)}")
-        return False
-
-# Function to generate content with Gemini API
-def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, audio_data=None, video_data=None, temperature=0.7):
-    """Generate content with error handling for multimedia inputs"""
-    if not use_gemini:
-        return "Gemini API is not available. Please install the google-generativeai package and set your API key."
-    
-    try:
-        # Generation config
-        generation_config = {
-            "temperature": temperature,
-            "top_p": 0.95,
-            "top_k": 40,
-            "max_output_tokens": 8192,
-        }
-        
-        # Safety settings
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
-        ]
-        
-        # Create model
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=generation_config,
-            safety_settings=safety_settings
-        )
-        
-        # Prepare content parts list
-        content_parts = [{"text": prompt}]
-        
-        # Add multimedia if provided
-        if image_data:
-            # Encode image
-            encoded_image = base64.b64encode(image_data).decode('utf-8')
-            content_parts.append({
-                "inline_data": {
-                    "mime_type": "image/jpeg", 
-                    "data": encoded_image
-                }
-            })
-        
-        if audio_data:
-            # Determine MIME type based on file extension
-            mime_type = "audio/mpeg"  # Default
-            if hasattr(audio_data, 'name'):
-                if audio_data.name.lower().endswith('.wav'):
-                    mime_type = "audio/wav"
-                elif audio_data.name.lower().endswith('.mp3'):
-                    mime_type = "audio/mpeg"
-                elif audio_data.name.lower().endswith('.m4a'):
-                    mime_type = "audio/mp4"
-            
-            # Encode audio
-            encoded_audio = base64.b64encode(audio_data).decode('utf-8')
-            content_parts.append({
-                "inline_data": {
-                    "mime_type": mime_type, 
-                    "data": encoded_audio
-                }
-            })
-        
-        if video_data:
-            # Determine MIME type based on file extension
-            mime_type = "video/mp4"  # Default
-            if hasattr(video_data, 'name'):
-                if video_data.name.lower().endswith('.mp4'):
-                    mime_type = "video/mp4"
-                elif video_data.name.lower().endswith('.webm'):
-                    mime_type = "video/webm"
-                elif video_data.name.lower().endswith('.mov'):
-                    mime_type = "video/quicktime"
-            
-            # Encode video
-            encoded_video = base64.b64encode(video_data).decode('utf-8')
-            content_parts.append({
-                "inline_data": {
-                    "mime_type": mime_type, 
-                    "data": encoded_video
-                }
-            })
-        
-        # Generate content with all parts
-        response = model.generate_content(content_parts)
-        return response.text
-        
-    except Exception as e:
-        logger.error(f"Gemini API error: {str(e)}")
-        return f"Sorry, I encountered an error with Gemini API: {str(e)}"
-
-# Function to generate content with Groq API (specialized for document analysis)
-def generate_content_with_groq(prompt, temperature=0.6):
-    """Generate content using Groq API with streaming for document analysis"""
-    if not use_groq:
-        return "Groq API is not available. Please install the groq package and set your API key."
-    
-    try:
-        # Validate API key format first
-        if not GROQ_API_KEY or len(GROQ_API_KEY) < 10:
-            return "Invalid Groq API key. Please provide a valid API key."
-            
-        full_response = ""
-        
-        # Create completion with streaming
-        completion = groq_client.chat.completions.create(
-            model="mixtral-8x7b-32768",  # Using Mixtral model which is good for document analysis
-            messages=[
-                {"role": "system", "content": "You are an expert document analyzer and educator."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=temperature,
-            max_tokens=4096,
-            top_p=0.95,
-            stream=True,
-            stop=None,
-        )
-        
-        # Process streaming response
-        for chunk in completion:
-            if chunk.choices and chunk.choices[0].delta.content:
-                chunk_content = chunk.choices[0].delta.content
-                full_response += chunk_content
-                
-        return full_response
-    
-    except Exception as e:
-        return f"Sorry, I encountered an error with Groq API: {str(e)}"
-
-# Fallback text generation for when APIs are not available
-def generate_text_fallback(prompt):
-    """Provide a basic response when APIs are not available"""
-    return f"I would respond to: '{prompt}' but API access is currently unavailable. Please ensure you have installed the required packages and provided API keys."
-
-# Class for Educational Content Analysis
-class EducationalContentAnalyzer:
-    def __init__(self):
-        if use_gemini:
-            # Using the already configured Gemini client
-            self.model_available = True
-        else:
-            self.model_available = False
-            logger.warning("Gemini API not available for Content Analysis")
-    
-    def analyze_video_content(self, video_file, context_info=None):
-        """
-        Analyze video for educational content insights
-        
-        Parameters:
-        video_file: Streamlit UploadedFile object
-        context_info: Dictionary with analysis context information
-        
-        Returns:
-        List of string analysis results
-        """
-        if not self.model_available:
-            return ["Gemini API not available. Cannot perform video analysis."]
-        
-        try:
-            # Prepare context string based on provided info
-            context_str = ""
-            focus_str = ""
-            thoroughness = "standard"
-            
-            if context_info:
-                if "contexts" in context_info and context_info["contexts"]:
-                    context_str = ", ".join(context_info["contexts"])
-                if "focus_areas" in context_info and context_info["focus_areas"]:
-                    focus_str = ", ".join(context_info["focus_areas"])
-                if "thoroughness" in context_info:
-                    thoroughness = context_info["thoroughness"].lower()
-            
-            # Get video metadata
-            video_name = video_file.name
-            video_type = video_file.type
-            video_size = len(video_file.getvalue()) / (1024 * 1024)  # Size in MB
-            
-            # Adjust detail level based on thoroughness
-            detail_level = {
-                "basic": "Provide a brief overview of the key educational concepts.",
-                "standard": "Provide a balanced analysis with moderate detail on educational content.",
-                "detailed": "Provide an in-depth, comprehensive analysis with detailed explanations of all educational concepts observed in the video."
-            }.get(thoroughness, "Provide a balanced analysis with moderate detail.")
-            
-            # Create a detailed prompt for video analysis
-            video_prompt = f"""
-            Analyze this educational video file ({video_name}, {video_type}, {video_size:.2f} MB) for educational content and teaching strategies.
-            
-            Educational Context: {context_str or "General educational setting"}
-            Analysis Focus Areas: {focus_str or "General educational content and pedagogy"}
-            
-            Focus your analysis on:
-            • Key educational concepts presented
-            • Teaching methodologies demonstrated
-            • Learning objectives covered
-            • Student engagement strategies
-            • Visual and auditory teaching techniques
-            • Sequencing and pacing of content
-            • Examples and illustrations used
-            • Instructional clarity and effectiveness
-            
-            {detail_level}
-            
-            Provide a comprehensive educational assessment including:
-            1. Main educational concepts identified
-            2. Teaching strategies observed
-            3. Suggestions for enhancing the educational content
-            4. How the content connects to broader learning objectives
-            5. Summary of key educational takeaways
-            
-            Format your response using markdown for readability.
-            """
-            
-            # Generate response using Gemini with appropriate model for video
-            response = generate_content(
-                prompt=video_prompt,
-                model_name="gemini-2.0-flash",
-                video_data=video_file.getvalue(),
-                temperature=0.3
-            )
-            
-            return [response]
-            
-        except Exception as e:
-            logger.error(f"Error in video analysis: {e}")
-            return [f"Error in video analysis: {str(e)}"]
-
-    def analyze_audio_content(self, audio_file, context_info=None):
-        """
-        Analyze audio for educational content insights
-        
-        Parameters:
-        audio_file: Streamlit UploadedFile object
-        context_info: Dictionary with analysis context information
-        
-        Returns:
-        List of string analysis results
-        """
-        if not self.model_available:
-            return ["Gemini API not available. Cannot perform audio analysis."]
-        
-        try:
-            # Prepare context string based on provided info
-            context_str = ""
-            focus_str = ""
-            thoroughness = "standard"
-            
-            if context_info:
-                if "contexts" in context_info and context_info["contexts"]:
-                    context_str = ", ".join(context_info["contexts"])
-                if "focus_areas" in context_info and context_info["focus_areas"]:
-                    focus_str = ", ".join(context_info["focus_areas"])
-                if "thoroughness" in context_info:
-                    thoroughness = context_info["thoroughness"].lower()
-            
-            # Get audio metadata
-            audio_name = audio_file.name
-            audio_type = audio_file.type
-            audio_size = len(audio_file.getvalue()) / (1024 * 1024)  # Size in MB
-            
-            # Adjust detail level based on thoroughness
-            detail_level = {
-                "basic": "Provide a brief overview of the key educational concepts.",
-                "standard": "Provide a balanced analysis with moderate detail on educational content.",
-                "detailed": "Provide an in-depth, comprehensive analysis with detailed explanations of all educational concepts in the audio."
-            }.get(thoroughness, "Provide a balanced analysis with moderate detail.")
-            
-            # Create a detailed prompt for audio analysis
-            audio_prompt = f"""
-            Analyze this educational audio file ({audio_name}, {audio_type}, {audio_size:.2f} MB) for educational content and teaching strategies.
-            
-            Educational Context: {context_str or "General educational setting"}
-            Analysis Focus Areas: {focus_str or "General educational content and pedagogy"}
-            
-            Focus your analysis on:
-            • Key educational concepts presented
-            • Verbal teaching techniques
-            • Clarity of explanations
-            • Questioning strategies used
-            • Pacing and structure of the lesson
-            • Verbal engagement techniques
-            • Use of examples and analogies
-            • Content organization and flow
-            
-            {detail_level}
-            
-            Provide a detailed educational analysis of:
-            1. Main educational concepts identified
-            2. Verbal teaching strategies observed
-            3. Suggestions for enhancing the audio instruction
-            4. How the content connects to broader learning objectives
-            5. Summary of key educational takeaways
-            
-            Format your response using markdown for readability.
-            """
-            
-            # Generate response using Gemini with appropriate model for audio
-            response = generate_content(
-                prompt=audio_prompt,
-                model_name="gemini-2.0-flash",
-                audio_data=audio_file.getvalue(),
-                temperature=0.3
-            )
-            
-            return [response]
-        
-        except Exception as e:
-            logger.error(f"Error in audio analysis: {e}")
-            return [f"Error in audio analysis: {str(e)}"]
-
-    def analyze_content(self, video_file, audio_file, context_info=None):
-        """
-        Process both video and audio files with contextual information and return analysis results
-        
-        Parameters:
-        video_file: Streamlit UploadedFile object for video or None
-        audio_file: Streamlit UploadedFile object for audio or None
-        context_info: Dictionary with keys 'contexts', 'focus_areas', and 'thoroughness'
-        
-        Returns:
-        Dictionary with analysis results
-        """
-        results = {
-            "timestamp": datetime.now().isoformat(),
-            "video_analysis": None,
-            "audio_analysis": None
-        }
-
-        if video_file:
-            results["video_analysis"] = self.analyze_video_content(video_file, context_info)
-
-        if audio_file:
-            results["audio_analysis"] = self.analyze_audio_content(audio_file, context_info)
-
-        return results
-
-# Initialize session state variables
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-if "current_mode" not in st.session_state:
-    st.session_state.current_mode = "Learning Assistant"
-
-if "first_visit" not in st.session_state:
-    st.session_state.first_visit = True
-
-if "tutor_messages" not in st.session_state:
-    st.session_state.tutor_messages = [
-        {"role": "assistant", "content": "👋 Hi there! I'm your AI learning companion. What would you like to learn about today?"}
-    ]
-
-# Header
-st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
-st.markdown('<div class="edu-subheader">Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
-
-# Display welcome screen on first visit
-if st.session_state.first_visit:
-    st.markdown("""
-    <div style="padding: 20px; background-color: #f0f7ff; border-radius: 10px; margin-bottom: 25px;">
-        <h2 style="color: #4257b2; text-align: center;">Welcome to EduGenius!</h2>
-        <p style="text-align: center; font-size: 1.1rem;">The next-generation AI-powered educational platform that transforms how students learn and teachers teach.</p>
-        
-        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 25px;">
-            <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h3 style="color: #4257b2;">🤖 AI Tutor</h3>
-                <p>Engage in natural conversations with your AI learning companion that adapts to your learning style.</p>
-            </div>
-            <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h3 style="color: #4257b2;">📷 Visual Learning</h3>
-                <p>Upload images of diagrams, problems, or visual concepts for AI explanation and analysis.</p>
-            </div>
-            <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h3 style="color: #4257b2;">🎓 Educational Analysis</h3>
-                <p>Advanced AI analysis of educational videos and audio content for enhanced teaching and learning.</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Button to dismiss welcome screen
-    if st.button("Get Started", key="welcome_dismiss"):
-        st.session_state.first_visit = False
-        st.rerun()
-
-# Display API status
-with st.sidebar:
-    st.header("API Status")
-    
-    if use_gemini:
-        st.success("✅ Google Gemini API: Connected")
-    else:
-        st.error("❌ Google Gemini API: Not Available")
-        st.info("To use Gemini features, install the google-generativeai package and set your API key.")
-        
-    if use_groq:
-        st.success("✅ Groq API: Connected")
-    else:
-        st.error("❌ Groq API: Not Available")
-        st.info("To use Groq features, install the groq package and set your API key.")
-    
-    # Add setup instructions
-    with st.expander("Setup Instructions"):
-        st.markdown("""
-        ### Setting Up API Access
-        
-        1. **Install Required Packages**:
-           ```
-           pip install streamlit Pillow PyPDF2 google-generativeai groq
-           ```
-           
-        2. **Set API Keys as Environment Variables**:
-           - For Gemini: `GEMINI_API_KEY`
-           - For Groq: `GROQ_API_KEY`
-        """)
-
-# Define the tab names
-tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator", "Educational Content Analysis"]
-
-# Create tabs
-selected_tab = st.tabs(tab_names)
-
-# Learning Assistant tab
-with selected_tab[0]:
-    if st.session_state.current_mode != "Learning Assistant":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Learning Assistant"
-    
-    st.markdown("### Your AI Learning Companion")
-    st.markdown("Ask any question about any subject, request explanations, or get help with homework")
-    
-    # Configure learning settings in an expandable section
-    with st.expander("Learning Settings", expanded=False):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            learning_level = st.selectbox("Learning Level:", 
-                                        ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"])
-            learning_style = st.selectbox("Learning Style:", 
-                                        ["Visual", "Textual", "Interactive", "Example-based", "Socratic"])
-        
-        with col2:
-            memory_option = st.checkbox("Enable Chat Memory", value=True, 
-                                     help="When enabled, the AI will remember previous exchanges in this conversation")
-    
-    # Display chat messages
-    chat_container = st.container()
-    with chat_container:
-        for message in st.session_state.tutor_messages:
-            if message["role"] == "user":
-                st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>EduGenius:</strong> {message['content']}</div>", unsafe_allow_html=True)
-    
-    # Chat input area with a more modern design
-    st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2 = st.columns([5, 1])
-    
-    with col1:
-        user_input = st.text_area("Your question:", height=80, key="tutor_input",
-                                placeholder="Type your question here... (e.g., Explain quantum entanglement in simple terms)")
-    
-    with col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        submit_button = st.button("Send", use_container_width=True, key="tutor_submit")
-        
-        # Add multimedia upload option
-        upload_option = st.selectbox("", ["Add Media", "Image"], key="upload_selector")
-    
-    # Handle file uploads
-    uploaded_file = None
-    if upload_option != "Add Media":
-        if upload_option == "Image":
-            uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
-        
-        if uploaded_file is not None:
-            # Display information about the uploaded file
-            st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
-            # Store the file reference in the session state for later use
-            st.session_state.current_upload = {
-                "file": uploaded_file,
-                "type": upload_option,
-                "name": uploaded_file.name
-            }
-            
-    # Processing user input
-    if submit_button and user_input:
-        # Add user message to chat
-        st.session_state.tutor_messages.append({"role": "user", "content": user_input})
-        
-        # Create system context based on selected options
-        system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
-        
-        # Create conversation history for context
-        conversation_history = ""
-        if memory_option and len(st.session_state.tutor_messages) > 1:
-            for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
-                role = "User" if msg["role"] == "user" else "EduGenius"
-                conversation_history += f"{role}: {msg['content']}\n\n"
-        
-        # Try to generate response
-        with st.spinner("Thinking..."):
-            try:
-                # Determine if we have multimedia
-                has_multimedia = False
-                media_bytes = None
-                
-                if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
-                    has_multimedia = True
-                    media_bytes = st.session_state.current_upload["file"].getvalue()
-                
-                # Create prompt with system context and conversation history
-                prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
-                
-                if has_multimedia:
-                    media_type = st.session_state.current_upload["type"].lower()
-                    prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
-                
-                if use_gemini:
+if use_gemini:
                     # Select appropriate model
                     model_name = get_model_name("image" if has_multimedia else "chat")
                     
@@ -766,16 +36,9 @@ with selected_tab[1]:
     st.markdown("### AI-Powered Document Analysis")
     st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
     
-    # Add API selection for document analysis
-    api_choice = st.radio("Select AI model for document analysis:", 
-                          ["Groq (faster processing)", "Google Gemini (better for visuals)"])
-    
-    # Disable unavailable options
-    if api_choice.startswith("Groq") and not use_groq:
-        st.warning("Groq API is not available. Please install the groq package and provide your API key.")
-    
-    if api_choice.startswith("Google") and not use_gemini:
-        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
+    # For Document Analysis, we'll now use Gemini exclusively
+    if not use_gemini:
+        st.warning("⚠️ Gemini API is not available. Please install the google-generativeai package and set your API key to use this feature.")
     
     uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
     
@@ -817,8 +80,7 @@ with selected_tab[1]:
                                         file_content += extracted_text + "\n"
                                 
                                 if not file_content.strip():
-                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
-                                    api_choice = "Groq (faster processing)"
+                                    st.warning("The PDF appears to be image-based or has no extractable text.")
                                     file_content = f"[Image-based PDF: {uploaded_file.name}]"
                             except Exception as pdf_error:
                                 st.error(f"Error extracting PDF content: {str(pdf_error)}")
@@ -830,8 +92,8 @@ with selected_tab[1]:
                         # Use the pasted text instead
                         file_content = manual_text_input
                     
-                    # If the file content is large, trim it only if using Gemini (Groq can handle larger contexts)
-                    if api_choice == "Google Gemini (better for visuals)" and len(file_content) > 10000:
+                    # If the file content is large, trim it
+                    if len(file_content) > 10000:
                         file_content = file_content[:10000] + "... [content truncated due to size]"
                     
                     # Create prompt for document analysis
@@ -842,29 +104,8 @@ with selected_tab[1]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
                     
-                    # Generate response based on selected API
-                    if api_choice.startswith("Groq") and use_groq:
-                        try:
-                            # Use Groq for document analysis
-                            with st.status("Processing with Groq..."):
-                                response_text = generate_content_with_groq(
-                                    prompt=analysis_prompt,
-                                    temperature=0.6
-                                )
-                        except Exception as e:
-                            st.error(f"Groq API error: {str(e)}")
-                            # Fallback to Gemini if available
-                            if use_gemini:
-                                st.info("Falling back to Gemini API...")
-                                response_text = generate_content(
-                                    prompt=analysis_prompt,
-                                    model_name=get_model_name("document"),
-                                    temperature=0.3
-                                )
-                            else:
-                                response_text = f"Error with Groq API: {str(e)}. Please check your API key or try again later."
-                    elif use_gemini:
-                        # Use Gemini for document analysis
+                    # Use Gemini for document analysis
+                    if use_gemini:
                         response_text = generate_content(
                             prompt=analysis_prompt,
                             model_name=get_model_name("document"),
@@ -1052,8 +293,13 @@ with selected_tab[3]:
                     if include_explanations:
                         prompt += "Provide brief explanations for each answer. "
                     
-                    # Get response
-                    if use_gemini:
+                    # Try to use Groq for quiz generation first, then fall back to Gemini
+                    if use_groq:
+                        response = generate_educational_content_with_groq(
+                            prompt=prompt,
+                            temperature=0.7
+                        )
+                    elif use_gemini:
                         response = generate_content(
                             prompt=prompt,
                             model_name=get_model_name("chat"),
@@ -1413,6 +659,324 @@ with selected_tab[4]:
             7. **Analyze multiple teaching samples** over time to track improvement
             """)
 
+# Content Creation tab
+with selected_tab[5]:
+    if st.session_state.current_mode != "Content Creation":
+        st.session_state.content_history = []
+        st.session_state.current_mode = "Content Creation"
+    
+    st.markdown("### AI Educational Content Creation")
+    st.markdown("Generate high-quality educational content for any subject and grade level using DeepSeek's advanced reasoning")
+    
+    # Check for Groq API availability
+    if not use_groq:
+        st.warning("⚠️ Groq API is not available. Please install the groq package and provide your API key.")
+    
+    # Content creation form
+    with st.form("content_creation_form"):
+        # Basic settings
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            content_subject = st.text_input("Subject:", 
+                                           placeholder="E.g., Biology, World History, Algebra")
+            
+            grade_level = st.select_slider(
+                "Education level:",
+                options=["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Professional"],
+                value="High School"
+            )
+            
+            content_type = st.selectbox(
+                "Content type:",
+                [
+                    "Lesson Plan", 
+                    "Study Guide", 
+                    "Lecture Notes",
+                    "Curriculum Unit", 
+                    "Presentation",
+                    "Worksheet",
+                    "Assignment",
+                    "Reading Material",
+                    "Assessment"
+                ]
+            )
+        
+        with col2:
+            specific_topic = st.text_input("Specific topic:", 
+                                         placeholder="E.g., Cell Division, French Revolution, Quadratic Equations")
+            
+            duration = st.selectbox(
+                "Intended duration:",
+                ["Single Session (20-40 min)", "Multiple Sessions", "Full Unit (1-2 weeks)", "N/A"],
+                index=0
+            )
+            
+            standards = st.text_input("Learning standards (optional):", 
+                                     placeholder="E.g., NGSS, Common Core, AP, IB, etc.")
+        
+        # Advanced options
+        with st.expander("Advanced Options", expanded=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                teaching_style = st.selectbox(
+                    "Teaching style:",
+                    [
+                        "Inquiry-based", 
+                        "Project-based", 
+                        "Lecture-based",
+                        "Discussion-based", 
+                        "Flipped Classroom",
+                        "Differentiated Instruction",
+                        "Game-based Learning"
+                    ]
+                )
+                
+                accessibility = st.multiselect(
+                    "Accessibility considerations:",
+                    [
+                        "Visual impairments",
+                        "Hearing impairments",
+                        "Learning disabilities",
+                        "ELL/ESL students",
+                        "Advanced learners"
+                    ]
+                )
+            
+            with col2:
+                include_elements = st.multiselect(
+                    "Include elements:",
+                    [
+                        "Learning objectives", 
+                        "Key vocabulary", 
+                        "Discussion questions",
+                        "Assessment strategies", 
+                        "Homework ideas",
+                        "Extension activities",
+                        "Digital resources"
+                    ],
+                    default=["Learning objectives", "Key vocabulary", "Discussion questions"]
+                )
+                
+                content_creativity = st.slider(
+                    "Creativity level:",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.6,
+                    step=0.1,
+                    help="Higher values produce more creative and varied content"
+                )
+        
+        # Additional details
+        additional_instructions = st.text_area(
+            "Additional instructions (optional):",
+            placeholder="Any specific requirements or elements you want included..."
+        )
+        
+        # Submit button
+        submit_button = st.form_submit_button("Generate Educational Content", use_container_width=True)
+    
+    # Process content creation when form is submitted
+    if submit_button:
+        if not content_subject or not specific_topic:
+            st.error("Please enter both a subject and specific topic to generate content.")
+        else:
+            with st.spinner("Creating educational content with DeepSeek's reasoning capabilities..."):
+                try:
+                    # Build comprehensive prompt
+                    prompt = f"""
+                    Create high-quality educational {content_type} for {grade_level} students on the subject of {content_subject}, 
+                    specifically focusing on {specific_topic}.
+                    
+                    This content is intended for {duration} of instruction.
+                    """
+                    
+                    if standards:
+                        prompt += f"\nAlign this content with the following standards: {standards}."
+                    
+                    if 'teaching_style' in locals():
+                        prompt += f"\nUse a {teaching_style} teaching approach."
+                    
+                    if accessibility:
+                        prompt += f"\nInclude accessibility considerations for: {', '.join(accessibility)}."
+                    
+                    if include_elements:
+                        prompt += f"\nInclude the following elements: {', '.join(include_elements)}."
+                    
+                    if additional_instructions:
+                        prompt += f"\n\nAdditional instructions: {additional_instructions}"
+                    
+                    prompt += """
+                    
+                    Format your response using markdown for readability. Organize the content in a clear, 
+                    structured way that would be immediately useful for an educator to implement.
+                    """
+                    
+                    # Generate content using Groq with DeepSeek model
+                    if use_groq:
+                        content_response = generate_educational_content_with_groq(
+                            prompt=prompt,
+                            temperature=content_creativity
+                        )
+                    else:
+                        # Fallback to Gemini if Groq is not available
+                        content_response = generate_content(
+                            prompt=prompt,
+                            model_name=get_model_name("chat"),
+                            temperature=content_creativity
+                        )
+                    
+                    # Display the generated content
+                    st.markdown("## Generated Educational Content")
+                    st.markdown(content_response)
+                    
+                    # Add download button
+                    filename = f"{content_subject.replace(' ', '_').lower()}_{content_type.replace(' ', '_').lower()}.md"
+                    st.download_button(
+                        label="Download Content",
+                        data=content_response,
+                        file_name=filename,
+                        mime="text/markdown"
+                    )
+                    
+                    # Save to history
+                    st.session_state.content_history.append({
+                        "subject": content_subject,
+                        "topic": specific_topic,
+                        "type": content_type,
+                        "level": grade_level,
+                        "content": content_response,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    
+                except Exception as e:
+                    st.error(f"Error generating content: {str(e)}")
+    
+    # Display content creation history
+    if hasattr(st.session_state, 'content_history') and st.session_state.content_history:
+        st.markdown("### Recently Created Content")
+        
+        for i, item in enumerate(reversed(st.session_state.content_history[-5:])):  # Show last 5 items
+            with st.expander(f"{item['type']}: {item['subject']} - {item['topic']} ({item['level']})"):
+                st.markdown(item['content'])
+                
+                # Add download button for history items
+                filename = f"{item['subject'].replace(' ', '_').lower()}_{item['type'].replace(' ', '_').lower()}.md"
+                st.download_button(
+                    label="Download This Content",
+                    data=item['content'],
+                    file_name=filename,
+                    mime="text/markdown",
+                    key=f"download_history_{i}"
+                )
+    
+    # Display feature showcase when no history exists
+    elif not submit_button:
+        st.markdown('<div class="creator-card">', unsafe_allow_html=True)
+        st.markdown("### What You Can Create")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("#### Lesson Plans")
+            st.markdown("""
+            - Complete lesson structures
+            - Detailed teaching instructions
+            - Timing and materials lists
+            - Learning objectives aligned to standards
+            """)
+        
+        with col2:
+            st.markdown("#### Student Materials")
+            st.markdown("""
+            - Engaging worksheets
+            - Comprehensive study guides
+            - Reading materials with questions
+            - Interactive assignments
+            """)
+            
+        with col3:
+            st.markdown("#### Assessment Tools")
+            st.markdown("""
+            - Formative assessments
+            - Summative tests
+            - Project rubrics
+            - Self-evaluation tools
+            """)
+            
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Add example content
+        with st.expander("See Example: High School Biology Lesson Plan"):
+            st.markdown("""
+            # Cellular Respiration Lesson Plan
+            
+            **Grade Level:** High School  
+            **Duration:** Single 45-minute session  
+            **Subject:** Biology
+            
+            ## Learning Objectives
+            By the end of this lesson, students will be able to:
+            - Explain the process of cellular respiration
+            - Identify the three main stages of cellular respiration
+            - Compare and contrast aerobic and anaerobic respiration
+            - Relate cellular respiration to everyday energy usage
+            
+            ## Key Vocabulary
+            - Cellular respiration
+            - Glycolysis
+            - Krebs cycle
+            - Electron transport chain
+            - ATP
+            - Aerobic/anaerobic
+            - Mitochondria
+            
+            ## Materials Needed
+            - Digital presentation slides
+            - Cellular respiration handouts
+            - Modeling clay (for mitochondria models)
+            - Colored pencils
+            - Exit ticket template
+            
+            ## Lesson Procedure
+            
+            ### Introduction (5 minutes)
+            1. Begin with a demonstration of physical activity (jumping jacks)
+            2. Ask students: "Where does the energy for this activity come from?"
+            3. Connect to prior knowledge about food as energy source
+            
+            ### Direct Instruction (15 minutes)
+            1. Present overview of cellular respiration using slides
+            2. Explain the equation: C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energy (ATP)
+            3. Discuss three main stages with emphasis on where ATP is produced
+            
+            ### Guided Practice (15 minutes)
+            1. Students work in pairs to create simple mitochondria models
+            2. Label key components and processes on their models
+            3. Complete flow chart handout showing reactants and products of each stage
+            
+            ### Independent Practice (5 minutes)
+            Students complete a 3-2-1 exit ticket:
+            - 3 things they learned
+            - 2 things they found interesting
+            - 1 question they still have
+            
+            ### Extension Activities
+            - Research disorders related to mitochondrial dysfunction
+            - Compare cellular respiration in different organisms
+            
+            ## Assessment
+            - Completed flow chart
+            - Exit ticket responses
+            - Mitochondria model accuracy
+            
+            ## Accommodation Strategies
+            - Provide pre-labeled diagrams for visual learners
+            - Offer guided notes for students with learning disabilities
+            - Allow verbal responses for assessment as needed
+            """)
+
 # Main entry point - This will run the Streamlit app
 if __name__ == "__main__":
     # Check for missing dependencies and display warning
@@ -1428,3 +992,753 @@ if __name__ == "__main__":
     logger.info("EduGenius started successfully")
     logger.info(f"Gemini API available: {use_gemini}")
     logger.info(f"Groq API available: {use_groq}")
+#!/usr/bin/env python3
+# EduGenius - AI Learning Assistant with Multimedia Analysis & Content Creation
+
+import streamlit as st
+import base64
+from PIL import Image
+import io
+import os
+import tempfile
+import warnings
+import json
+from datetime import datetime
+import logging
+import time
+
+# Try to import PyPDF2 for PDF processing
+try:
+    import PyPDF2
+except ImportError:
+    print("PyPDF2 not available. PDF processing will be limited.")
+
+# Optional imports for API integration
+try:
+    import google.generativeai as genai
+    HAS_GEMINI = True
+except ImportError:
+    HAS_GEMINI = False
+    print("Google Generative AI module not available.")
+
+try:
+    from groq import Groq
+    HAS_GROQ = True
+except ImportError:
+    HAS_GROQ = False
+    print("Groq API module not available.")
+
+# Suppress warnings
+warnings.filterwarnings('ignore')
+
+# Set page configuration
+st.set_page_config(
+    page_title="EduGenius - AI Learning Assistant", 
+    page_icon="🧠", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Apply custom CSS
+st.markdown("""
+<style>
+    .main {
+        background-color: #f8f9fa;
+    }
+    .stApp {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .edu-header {
+        color: #4257b2;
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    .edu-subheader {
+        color: #5a6275;
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    .feature-card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .feature-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        color: #4257b2;
+    }
+    .feature-title {
+        font-weight: bold;
+        color: #4257b2;
+        margin-bottom: 10px;
+    }
+    .submit-btn {
+        background-color: #4257b2;
+        color: white;
+        border-radius: 5px;
+        padding: 10px 20px;
+        font-weight: bold;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #f0f2f6;
+        border-radius: 5px 5px 0 0;
+        padding: 10px 16px;
+        font-weight: bold;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #4257b2 !important;
+        color: white !important;
+    }
+    .analysis-card {
+        background: linear-gradient(45deg, #f5f7ff, #e8eeff);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .analysis-title {
+        color: #4257b2;
+        margin-bottom: 1rem;
+    }
+    .analysis-content {
+        background: rgba(255,255,255,0.7);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+    .creator-card {
+        background: linear-gradient(45deg, #f0f7ff, #e6f2ff);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# API Configuration
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDLPkZIKqjPzdawHnWjEFnX3h-pkML0vm0")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
+
+# Initialize API clients conditionally
+use_groq = False
+use_gemini = False
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+if HAS_GEMINI:
+    try:
+        # Check if API key is valid format (at least non-empty)
+        if GEMINI_API_KEY:
+            genai.configure(api_key=GEMINI_API_KEY)
+            # Verify API connectivity
+            try:
+                test_models = genai.list_models()
+                if any("gemini" in model.name.lower() for model in test_models):
+                    use_gemini = True
+                    logger.info("Successfully connected to Google Gemini API")
+                else:
+                    logger.warning("No Gemini models found in available models")
+            except Exception as e:
+                logger.error(f"Error verifying Gemini models: {str(e)}")
+        else:
+            logger.warning("Gemini API key not provided")
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini API: {str(e)}")
+
+if HAS_GROQ:
+    try:
+        # Check if API key is valid format
+        if GROQ_API_KEY and len(GROQ_API_KEY) > 10:
+            groq_client = Groq(api_key=GROQ_API_KEY)
+            # Verify API connectivity (lightweight check)
+            use_groq = True
+            logger.info("Successfully initialized Groq API client")
+        else:
+            logger.warning("Groq API key not provided or invalid format")
+    except Exception as e:
+        logger.error(f"Failed to initialize Groq API: {str(e)}")
+
+# Function to get the appropriate model based on task
+def get_model_name(task_type="chat"):
+    """
+    Return the appropriate Gemini model name based on the task type
+    
+    Parameters:
+    task_type: One of 'chat', 'image', 'audio', 'video', 'document'
+    
+    Returns:
+    String with the model name to use
+    """
+    # For multimedia tasks, use Gemini 2.0 flash which has multimodal capabilities
+    if task_type in ["image", "audio", "video"]:
+        return "gemini-2.0-flash"
+    # For document analysis requiring more reasoning
+    elif task_type == "document":
+        return "gemini-2.0-flash"
+    # Default chat model
+    else:
+        return "gemini-2.0-flash"
+
+# Function to check if Gemini API is properly set up for multimedia
+def check_gemini_multimodal_support():
+    """Verify if the current Gemini setup supports multimodal inputs"""
+    if not use_gemini:
+        return False
+        
+    try:
+        available_models = genai.list_models()
+        for model in available_models:
+            if "gemini-2.0" in model.name and "generateContent" in str(model.supported_generation_methods):
+                # Check if model supports multimodal inputs
+                if any(input_type for input_type in ["image", "video", "audio"] if input_type in str(model)):
+                    return True
+        return False
+    except Exception as e:
+        logger.error(f"Error checking multimodal support: {str(e)}")
+        return False
+
+# Function to generate content with Gemini API
+def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, audio_data=None, video_data=None, temperature=0.7):
+    """Generate content with error handling for multimedia inputs"""
+    if not use_gemini:
+        return "Gemini API is not available. Please install the google-generativeai package and set your API key."
+    
+    try:
+        # Generation config
+        generation_config = {
+            "temperature": temperature,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+        }
+        
+        # Safety settings
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
+        ]
+        
+        # Create model
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+            safety_settings=safety_settings
+        )
+        
+        # Prepare content parts list
+        content_parts = [{"text": prompt}]
+        
+        # Add multimedia if provided
+        if image_data:
+            # Encode image
+            encoded_image = base64.b64encode(image_data).decode('utf-8')
+            content_parts.append({
+                "inline_data": {
+                    "mime_type": "image/jpeg", 
+                    "data": encoded_image
+                }
+            })
+        
+        if audio_data:
+            # Determine MIME type based on file extension
+            mime_type = "audio/mpeg"  # Default
+            if hasattr(audio_data, 'name'):
+                if audio_data.name.lower().endswith('.wav'):
+                    mime_type = "audio/wav"
+                elif audio_data.name.lower().endswith('.mp3'):
+                    mime_type = "audio/mpeg"
+                elif audio_data.name.lower().endswith('.m4a'):
+                    mime_type = "audio/mp4"
+            
+            # Encode audio
+            encoded_audio = base64.b64encode(audio_data).decode('utf-8')
+            content_parts.append({
+                "inline_data": {
+                    "mime_type": mime_type, 
+                    "data": encoded_audio
+                }
+            })
+        
+        if video_data:
+            # Determine MIME type based on file extension
+            mime_type = "video/mp4"  # Default
+            if hasattr(video_data, 'name'):
+                if video_data.name.lower().endswith('.mp4'):
+                    mime_type = "video/mp4"
+                elif video_data.name.lower().endswith('.webm'):
+                    mime_type = "video/webm"
+                elif video_data.name.lower().endswith('.mov'):
+                    mime_type = "video/quicktime"
+            
+            # Encode video
+            encoded_video = base64.b64encode(video_data).decode('utf-8')
+            content_parts.append({
+                "inline_data": {
+                    "mime_type": mime_type, 
+                    "data": encoded_video
+                }
+            })
+        
+        # Generate content with all parts
+        response = model.generate_content(content_parts)
+        return response.text
+        
+    except Exception as e:
+        logger.error(f"Gemini API error: {str(e)}")
+        return f"Sorry, I encountered an error with Gemini API: {str(e)}"
+
+# Function to generate educational content with Groq API
+def generate_educational_content_with_groq(prompt, temperature=0.6):
+    """Generate educational content using Groq API with the DeepSeek model"""
+    if not use_groq:
+        return "Groq API is not available. Please install the groq package and set your API key."
+    
+    try:
+        # Validate API key format first
+        if not GROQ_API_KEY or len(GROQ_API_KEY) < 10:
+            return "Invalid Groq API key. Please provide a valid API key."
+            
+        full_response = ""
+        
+        # Create completion with streaming
+        completion = groq_client.chat.completions.create(
+            model="deepseek-r1-distill-qwen-32b",  # Using DeepSeek model which has strong reasoning abilities
+            messages=[
+                {"role": "system", "content": "You are an expert educator specializing in creating high-quality educational content."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=temperature,
+            max_tokens=4096,
+            top_p=0.95,
+            stream=True,
+            stop=None,
+        )
+        
+        # Process streaming response
+        for chunk in completion:
+            if chunk.choices and chunk.choices[0].delta.content:
+                chunk_content = chunk.choices[0].delta.content
+                full_response += chunk_content
+                
+        return full_response
+    
+    except Exception as e:
+        return f"Sorry, I encountered an error with Groq API: {str(e)}"
+
+# Fallback text generation for when APIs are not available
+def generate_text_fallback(prompt):
+    """Provide a basic response when APIs are not available"""
+    return f"I would respond to: '{prompt}' but API access is currently unavailable. Please ensure you have installed the required packages and provided API keys."
+
+# Class for Educational Content Analysis
+class EducationalContentAnalyzer:
+    def __init__(self):
+        if use_gemini:
+            # Using the already configured Gemini client
+            self.model_available = True
+        else:
+            self.model_available = False
+            logger.warning("Gemini API not available for Content Analysis")
+    
+    def analyze_video_content(self, video_file, context_info=None):
+        """
+        Analyze video for educational content insights
+        
+        Parameters:
+        video_file: Streamlit UploadedFile object
+        context_info: Dictionary with analysis context information
+        
+        Returns:
+        List of string analysis results
+        """
+        if not self.model_available:
+            return ["Gemini API not available. Cannot perform video analysis."]
+        
+        try:
+            # Prepare context string based on provided info
+            context_str = ""
+            focus_str = ""
+            thoroughness = "standard"
+            
+            if context_info:
+                if "contexts" in context_info and context_info["contexts"]:
+                    context_str = ", ".join(context_info["contexts"])
+                if "focus_areas" in context_info and context_info["focus_areas"]:
+                    focus_str = ", ".join(context_info["focus_areas"])
+                if "thoroughness" in context_info:
+                    thoroughness = context_info["thoroughness"].lower()
+            
+            # Get video metadata
+            video_name = video_file.name
+            video_type = video_file.type
+            video_size = len(video_file.getvalue()) / (1024 * 1024)  # Size in MB
+            
+            # Adjust detail level based on thoroughness
+            detail_level = {
+                "basic": "Provide a brief overview of the key educational concepts.",
+                "standard": "Provide a balanced analysis with moderate detail on educational content.",
+                "detailed": "Provide an in-depth, comprehensive analysis with detailed explanations of all educational concepts observed in the video."
+            }.get(thoroughness, "Provide a balanced analysis with moderate detail.")
+            
+            # Create a detailed prompt for video analysis
+            video_prompt = f"""
+            Analyze this educational video file ({video_name}, {video_type}, {video_size:.2f} MB) for educational content and teaching strategies.
+            
+            Educational Context: {context_str or "General educational setting"}
+            Analysis Focus Areas: {focus_str or "General educational content and pedagogy"}
+            
+            Focus your analysis on:
+            • Key educational concepts presented
+            • Teaching methodologies demonstrated
+            • Learning objectives covered
+            • Student engagement strategies
+            • Visual and auditory teaching techniques
+            • Sequencing and pacing of content
+            • Examples and illustrations used
+            • Instructional clarity and effectiveness
+            
+            {detail_level}
+            
+            Provide a comprehensive educational assessment including:
+            1. Main educational concepts identified
+            2. Teaching strategies observed
+            3. Suggestions for enhancing the educational content
+            4. How the content connects to broader learning objectives
+            5. Summary of key educational takeaways
+            
+            Format your response using markdown for readability.
+            """
+            
+            # Generate response using Gemini with appropriate model for video
+            response = generate_content(
+                prompt=video_prompt,
+                model_name="gemini-2.0-flash",
+                video_data=video_file.getvalue(),
+                temperature=0.3
+            )
+            
+            return [response]
+            
+        except Exception as e:
+            logger.error(f"Error in video analysis: {e}")
+            return [f"Error in video analysis: {str(e)}"]
+
+    def analyze_audio_content(self, audio_file, context_info=None):
+        """
+        Analyze audio for educational content insights
+        
+        Parameters:
+        audio_file: Streamlit UploadedFile object
+        context_info: Dictionary with analysis context information
+        
+        Returns:
+        List of string analysis results
+        """
+        if not self.model_available:
+            return ["Gemini API not available. Cannot perform audio analysis."]
+        
+        try:
+            # Prepare context string based on provided info
+            context_str = ""
+            focus_str = ""
+            thoroughness = "standard"
+            
+            if context_info:
+                if "contexts" in context_info and context_info["contexts"]:
+                    context_str = ", ".join(context_info["contexts"])
+                if "focus_areas" in context_info and context_info["focus_areas"]:
+                    focus_str = ", ".join(context_info["focus_areas"])
+                if "thoroughness" in context_info:
+                    thoroughness = context_info["thoroughness"].lower()
+            
+            # Get audio metadata
+            audio_name = audio_file.name
+            audio_type = audio_file.type
+            audio_size = len(audio_file.getvalue()) / (1024 * 1024)  # Size in MB
+            
+            # Adjust detail level based on thoroughness
+            detail_level = {
+                "basic": "Provide a brief overview of the key educational concepts.",
+                "standard": "Provide a balanced analysis with moderate detail on educational content.",
+                "detailed": "Provide an in-depth, comprehensive analysis with detailed explanations of all educational concepts in the audio."
+            }.get(thoroughness, "Provide a balanced analysis with moderate detail.")
+            
+            # Create a detailed prompt for audio analysis
+            audio_prompt = f"""
+            Analyze this educational audio file ({audio_name}, {audio_type}, {audio_size:.2f} MB) for educational content and teaching strategies.
+            
+            Educational Context: {context_str or "General educational setting"}
+            Analysis Focus Areas: {focus_str or "General educational content and pedagogy"}
+            
+            Focus your analysis on:
+            • Key educational concepts presented
+            • Verbal teaching techniques
+            • Clarity of explanations
+            • Questioning strategies used
+            • Pacing and structure of the lesson
+            • Verbal engagement techniques
+            • Use of examples and analogies
+            • Content organization and flow
+            
+            {detail_level}
+            
+            Provide a detailed educational analysis of:
+            1. Main educational concepts identified
+            2. Verbal teaching strategies observed
+            3. Suggestions for enhancing the audio instruction
+            4. How the content connects to broader learning objectives
+            5. Summary of key educational takeaways
+            
+            Format your response using markdown for readability.
+            """
+            
+            # Generate response using Gemini with appropriate model for audio
+            response = generate_content(
+                prompt=audio_prompt,
+                model_name="gemini-2.0-flash",
+                audio_data=audio_file.getvalue(),
+                temperature=0.3
+            )
+            
+            return [response]
+        
+        except Exception as e:
+            logger.error(f"Error in audio analysis: {e}")
+            return [f"Error in audio analysis: {str(e)}"]
+
+    def analyze_content(self, video_file, audio_file, context_info=None):
+        """
+        Process both video and audio files with contextual information and return analysis results
+        
+        Parameters:
+        video_file: Streamlit UploadedFile object for video or None
+        audio_file: Streamlit UploadedFile object for audio or None
+        context_info: Dictionary with keys 'contexts', 'focus_areas', and 'thoroughness'
+        
+        Returns:
+        Dictionary with analysis results
+        """
+        results = {
+            "timestamp": datetime.now().isoformat(),
+            "video_analysis": None,
+            "audio_analysis": None
+        }
+
+        if video_file:
+            results["video_analysis"] = self.analyze_video_content(video_file, context_info)
+
+        if audio_file:
+            results["audio_analysis"] = self.analyze_audio_content(audio_file, context_info)
+
+        return results
+
+# Initialize session state variables
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+if "current_mode" not in st.session_state:
+    st.session_state.current_mode = "Learning Assistant"
+
+if "first_visit" not in st.session_state:
+    st.session_state.first_visit = True
+
+if "tutor_messages" not in st.session_state:
+    st.session_state.tutor_messages = [
+        {"role": "assistant", "content": "👋 Hi there! I'm your AI learning companion. What would you like to learn about today?"}
+    ]
+
+# Header
+st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
+st.markdown('<div class="edu-subheader">Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
+
+# Display welcome screen on first visit
+if st.session_state.first_visit:
+    st.markdown("""
+    <div style="padding: 20px; background-color: #f0f7ff; border-radius: 10px; margin-bottom: 25px;">
+        <h2 style="color: #4257b2; text-align: center;">Welcome to EduGenius!</h2>
+        <p style="text-align: center; font-size: 1.1rem;">The next-generation AI-powered educational platform that transforms how students learn and teachers teach.</p>
+        
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 25px;">
+            <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                <h3 style="color: #4257b2;">🤖 AI Tutor</h3>
+                <p>Engage in natural conversations with your AI learning companion that adapts to your learning style.</p>
+            </div>
+            <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                <h3 style="color: #4257b2;">📷 Visual Learning</h3>
+                <p>Upload images of diagrams, problems, or visual concepts for AI explanation and analysis.</p>
+            </div>
+            <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                <h3 style="color: #4257b2;">✏️ Content Creation</h3>
+                <p>Generate professional educational materials, lesson plans, and assessments with AI.</p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Button to dismiss welcome screen
+    if st.button("Get Started", key="welcome_dismiss"):
+        st.session_state.first_visit = False
+        st.rerun()
+
+# Display API status
+with st.sidebar:
+    st.header("API Status")
+    
+    if use_gemini:
+        st.success("✅ Google Gemini API: Connected")
+    else:
+        st.error("❌ Google Gemini API: Not Available")
+        st.info("To use Gemini features, install the google-generativeai package and set your API key.")
+        
+    if use_groq:
+        st.success("✅ Groq API: Connected")
+    else:
+        st.error("❌ Groq API: Not Available")
+        st.info("To use Groq features, install the groq package and set your API key.")
+    
+    # Add setup instructions
+    with st.expander("Setup Instructions"):
+        st.markdown("""
+        ### Setting Up API Access
+        
+        1. **Install Required Packages**:
+           ```
+           pip install streamlit Pillow PyPDF2 google-generativeai groq
+           ```
+           
+        2. **Set API Keys as Environment Variables**:
+           - For Gemini: `GEMINI_API_KEY`
+           - For Groq: `GROQ_API_KEY`
+        """)
+    
+    # Show model information
+    with st.expander("AI Models Used"):
+        st.markdown("""
+        ### Google Gemini
+        - **Gemini 2.0 Flash**: Used for tutoring, document analysis, and multimedia content analysis
+        
+        ### Groq
+        - **DeepSeek R1 Distill Qwen 32B**: Used for educational content creation with advanced reasoning
+        """)
+
+# Define the tab names (now including Content Creation)
+tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator", "Educational Content Analysis", "Content Creation"]
+
+# Create tabs
+selected_tab = st.tabs(tab_names)
+
+# Learning Assistant tab
+with selected_tab[0]:
+    if st.session_state.current_mode != "Learning Assistant":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Learning Assistant"
+    
+    st.markdown("### Your AI Learning Companion")
+    st.markdown("Ask any question about any subject, request explanations, or get help with homework")
+    
+    # Configure learning settings in an expandable section
+    with st.expander("Learning Settings", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            learning_level = st.selectbox("Learning Level:", 
+                                        ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"])
+            learning_style = st.selectbox("Learning Style:", 
+                                        ["Visual", "Textual", "Interactive", "Example-based", "Socratic"])
+        
+        with col2:
+            memory_option = st.checkbox("Enable Chat Memory", value=True, 
+                                     help="When enabled, the AI will remember previous exchanges in this conversation")
+    
+    # Display chat messages
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.tutor_messages:
+            if message["role"] == "user":
+                st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>EduGenius:</strong> {message['content']}</div>", unsafe_allow_html=True)
+    
+    # Chat input area with a more modern design
+    st.markdown("<br>", unsafe_allow_html=True)
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        user_input = st.text_area("Your question:", height=80, key="tutor_input",
+                                placeholder="Type your question here... (e.g., Explain quantum entanglement in simple terms)")
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        submit_button = st.button("Send", use_container_width=True, key="tutor_submit")
+        
+        # Add multimedia upload option
+        upload_option = st.selectbox("", ["Add Media", "Image"], key="upload_selector")
+    
+    # Handle file uploads
+    uploaded_file = None
+    if upload_option != "Add Media":
+        if upload_option == "Image":
+            uploaded_file = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png"], key="chat_image_upload")
+        
+        if uploaded_file is not None:
+            # Display information about the uploaded file
+            st.success(f"File '{uploaded_file.name}' uploaded successfully! ({uploaded_file.type})")
+            # Store the file reference in the session state for later use
+            st.session_state.current_upload = {
+                "file": uploaded_file,
+                "type": upload_option,
+                "name": uploaded_file.name
+            }
+            
+    # Processing user input
+    if submit_button and user_input:
+        # Add user message to chat
+        st.session_state.tutor_messages.append({"role": "user", "content": user_input})
+        
+        # Create system context based on selected options
+        system_context = f"You are EduGenius, an educational AI tutor. Adapt your explanation for {learning_level} level students. Use a {learning_style} learning style in your response."
+        
+        # Create conversation history for context
+        conversation_history = ""
+        if memory_option and len(st.session_state.tutor_messages) > 1:
+            for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
+                role = "User" if msg["role"] == "user" else "EduGenius"
+                conversation_history += f"{role}: {msg['content']}\n\n"
+        
+        # Try to generate response
+        with st.spinner("Thinking..."):
+            try:
+                # Determine if we have multimedia
+                has_multimedia = False
+                media_bytes = None
+                
+                if hasattr(st.session_state, 'current_upload') and st.session_state.current_upload is not None:
+                    has_multimedia = True
+                    media_bytes = st.session_state.current_upload["file"].getvalue()
+                
+                # Create prompt with system context and conversation history
+                prompt = f"{system_context}\n\nConversation history:\n{conversation_history}\n\nCurrent question: {user_input}"
+                
+                if has_multimedia:
+                    media_type = st.session_state.current_upload["type"].lower()
+                    prompt += f"\n\nNote: The student has also uploaded a {media_type} file named '{st.session_state.current_upload['name']}'. Please incorporate this into your response if relevant."
+                
+                if use_gemini:
+                    # Select appropriate model
+                    model_name = get_model_name("image" if has_multimedia else "chat")
