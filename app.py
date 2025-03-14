@@ -365,7 +365,7 @@ with selected_tab[1]:
                     analysis_prompt += "Here's a preview of the document content: " + str(file_content_preview)
                     
                     # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
+                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {detail_level} {map_style} concept map for {main_concept} at {education_level} level"})"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
                     
                     # Create a generative model instance
                     model = genai.GenerativeModel(
