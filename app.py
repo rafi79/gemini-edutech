@@ -338,9 +338,7 @@ def generate_content_with_groq(prompt, temperature=0.6):
         return full_response
     
     except Exception as e:
-        return f"Sorry, I encountered an error with Groq API: {str(e)}""
-
-# Fallback text generation for when APIs are not available
+        return f"Sorry, I encountered an error with Groq API: {str(e)}"
 def generate_text_fallback(prompt):
     """Provide a basic response when APIs are not available"""
     return f"I would respond to: '{prompt}' but API access is currently unavailable. Please ensure you have installed the required packages and provided API keys."
