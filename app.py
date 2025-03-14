@@ -649,10 +649,8 @@ with st.sidebar:
            - For Groq: `GROQ_API_KEY`
         """)
 
-# Define the tab names
+# Define the tab names and create tabs outside of any with block
 tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "DeepSeek Reasoning", "Quiz Generator", "Educational Content Analysis"]
-
-# Create tabs
 selected_tab = st.tabs(tab_names)
 with selected_tab[3]:
     if st.session_state.current_mode != "DeepSeek Reasoning":
