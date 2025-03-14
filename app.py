@@ -727,17 +727,17 @@ with selected_tab[0]:
     
     # Create conversation history for context
     conversation_history = ""
-      if memory_option and len(st.session_state.tutor_messages) > 1:
-        for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
-            role = "User" if msg["role"] == "user" else "EduGenius"
-            conversation_history += f"{role}: {msg['content']}\n\n"
+        if memory_option and len(st.session_state.tutor_messages) > 1:
+           for msg in st.session_state.tutor_messages[:-1]:  # Exclude the current message
+              role = "User" if msg["role"] == "user" else "EduGenius"
+                 conversation_history += f"{role}: {msg['content']}\n\n"
     
     # Try to generate response
-          with st.spinner("Thinking..."):
-          try:
+            with st.spinner("Thinking..."):
+              try:
             # Determine if we have multimedia
-            has_multimedia = False
-            media_bytes = None
+               has_multimedia = False
+                 media_bytes = None
             
             # Rest of your code here...
         # Code to execute while showing spinner
