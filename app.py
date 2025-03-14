@@ -123,6 +123,22 @@ st.markdown("""
         padding: 1rem;
         border-radius: 8px;
     }
+    .reasoning-card {
+        background: linear-gradient(45deg, #fff5f0, #fff0e8);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .reasoning-title {
+        color: #d85b31;
+        margin-bottom: 1rem;
+    }
+    .reasoning-content {
+        background: rgba(255,255,255,0.7);
+        padding: 1rem;
+        border-radius: 8px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -302,9 +318,9 @@ def generate_content(prompt, model_name="gemini-2.0-flash", image_data=None, aud
         logger.error(f"Gemini API error: {str(e)}")
         return f"Sorry, I encountered an error with Gemini API: {str(e)}"
 
-# Function to generate content with Groq API (specialized for document analysis)
-def generate_content_with_groq(prompt, temperature=0.6):
-    """Generate content using Groq API with streaming for document analysis"""
+# Function to generate content with DeepSeek model via Groq API for enhanced reasoning
+def generate_content_with_deepseek(prompt, temperature=0.6, max_tokens=4096):
+    """Generate content using DeepSeek R1 Distill Qwen 32B model through Groq API with streaming"""
     if not use_groq:
         return "Groq API is not available. Please install the groq package and set your API key."
     
@@ -315,15 +331,15 @@ def generate_content_with_groq(prompt, temperature=0.6):
             
         full_response = ""
         
-        # Create completion with streaming
+        # Create completion with streaming using DeepSeek model
         completion = groq_client.chat.completions.create(
-            model="mixtral-8x7b-32768",  # Using Mixtral model which is good for document analysis
+            model="deepseek-r1-distill-qwen-32b",  # Using DeepSeek model with strong reasoning
             messages=[
-                {"role": "system", "content": "You are an expert document analyzer and educator."},
+                {"role": "system", "content": "You are an expert educational content creator with advanced reasoning abilities. You provide detailed, thoughtful responses that show your step-by-step thinking process."},
                 {"role": "user", "content": prompt}
             ],
             temperature=temperature,
-            max_tokens=4096,
+            max_tokens=max_tokens,
             top_p=0.95,
             stream=True,
             stop=None,
@@ -338,7 +354,8 @@ def generate_content_with_groq(prompt, temperature=0.6):
         return full_response
     
     except Exception as e:
-        return f"Sorry, I encountered an error with Groq API: {str(e)}"
+        logger.error(f"DeepSeek API error: {str(e)}")
+        return f"Sorry, I encountered an error with the DeepSeek model: {str(e)}"
 
 # Fallback text generation for when APIs are not available
 def generate_text_fallback(prompt):
@@ -562,6 +579,11 @@ if "tutor_messages" not in st.session_state:
         {"role": "assistant", "content": "👋 Hi there! I'm your AI learning companion. What would you like to learn about today?"}
     ]
 
+if "reasoning_messages" not in st.session_state:
+    st.session_state.reasoning_messages = [
+        {"role": "assistant", "content": "👋 Welcome to the DeepSeek Reasoning Assistant! I use advanced reasoning to create educational content. What topic would you like me to explore with in-depth reasoning?"}
+    ]
+
 # Header
 st.markdown('<div class="edu-header">EduGenius</div>', unsafe_allow_html=True)
 st.markdown('<div class="edu-subheader">Your AI-Enhanced Learning Companion</div>', unsafe_allow_html=True)
@@ -583,8 +605,8 @@ if st.session_state.first_visit:
                 <p>Upload images of diagrams, problems, or visual concepts for AI explanation and analysis.</p>
             </div>
             <div style="flex: 1; min-width: 250px; background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <h3 style="color: #4257b2;">🎓 Educational Analysis</h3>
-                <p>Advanced AI analysis of educational videos and audio content for enhanced teaching and learning.</p>
+                <h3 style="color: #d85b31;">🧠 Reasoning Assistant</h3>
+                <p>Create educational content with deep reasoning capabilities using advanced DeepSeek AI model.</p>
             </div>
         </div>
     </div>
@@ -607,9 +629,10 @@ with st.sidebar:
         
     if use_groq:
         st.success("✅ Groq API: Connected")
+        st.success("✅ DeepSeek R1 Model: Available")
     else:
         st.error("❌ Groq API: Not Available")
-        st.info("To use Groq features, install the groq package and set your API key.")
+        st.info("To use Groq and DeepSeek features, install the groq package and set your API key.")
     
     # Add setup instructions
     with st.expander("Setup Instructions"):
@@ -627,7 +650,149 @@ with st.sidebar:
         """)
 
 # Define the tab names
-tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "Quiz Generator", "Educational Content Analysis"]
+tab_names = ["Learning Assistant", "Document Analysis", "Visual Learning", "DeepSeek Reasoning", "Quiz Generator", "Educational Content Analysis"]
+
+# Create tabs
+selected_tab = st.tabs(tab_names)
+
+# DeepSeek Reasoning Assistant tab (NEW)
+with selected_tab[3]:
+    if st.session_state.current_mode != "DeepSeek Reasoning":
+        st.session_state.current_mode = "DeepSeek Reasoning"
+
+    st.markdown("### 🧠 DeepSeek Reasoning Assistant")
+    st.markdown("The DeepSeek Reasoning Assistant uses advanced AI reasoning to create high-quality educational content with step-by-step thinking.")
+    
+    if not use_groq:
+        st.error("⚠️ The DeepSeek model requires the Groq API. Please install the groq package and set your API key.")
+    else:
+        # Display chat messages
+        reasoning_container = st.container()
+        with reasoning_container:
+            for message in st.session_state.reasoning_messages:
+                if message["role"] == "user":
+                    st.markdown(f"<div style='background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='background-color: #fff0e8; padding: 10px; border-radius: 10px; margin-bottom: 10px;'><strong>DeepSeek:</strong> {message['content']}</div>", unsafe_allow_html=True)
+        
+        # Configuration options
+        with st.expander("Content Generation Settings"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                content_type = st.selectbox(
+                    "Content Type:",
+                    ["Lesson Plan", "Educational Essay", "Concept Explanation", 
+                     "Problem-Solution Walkthrough", "Debate Analysis", 
+                     "Research Summary", "Step-by-Step Tutorial"]
+                )
+                
+                audience_level = st.select_slider(
+                    "Target Audience:",
+                    options=["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"],
+                    value="High School"
+                )
+            
+            with col2:
+                reasoning_depth = st.select_slider(
+                    "Reasoning Depth:",
+                    options=["Basic", "Standard", "In-depth", "Comprehensive"],
+                    value="Standard",
+                    help="Higher reasoning depth produces more detailed step-by-step thinking"
+                )
+                
+                temperature_value = st.slider(
+                    "Creativity Level:",
+                    min_value=0.1,
+                    max_value=1.0,
+                    value=0.7,
+                    step=0.1,
+                    help="Lower values produce more deterministic output, higher values more creative"
+                )
+        
+        # Input area
+        st.markdown("<br>", unsafe_allow_html=True)
+        user_prompt = st.text_area(
+            "What educational content would you like me to create?",
+            height=100,
+            key="deepseek_input",
+            placeholder="Describe the educational content you'd like me to create using advanced reasoning (e.g., Explain the concept of quantum superposition for high school students, or Create a lesson plan on photosynthesis)"
+        )
+        
+        # Process button
+        generate_button = st.button(
+            "Generate Educational Content with Reasoning",
+            key="deepseek_generate",
+            use_container_width=True,
+            disabled=not use_groq
+        )
+        
+        if generate_button and user_prompt:
+            # Add user message to history
+            st.session_state.reasoning_messages.append({"role": "user", "content": user_prompt})
+            
+            # Create detailed instruction prompt
+            system_instruction = f"""
+            Create high-quality educational content on: {user_prompt}
+            
+            Content type: {content_type}
+            Target audience: {audience_level} level
+            Reasoning depth: {reasoning_depth}
+            
+            Please follow these guidelines:
+            1. Start by analyzing what the core concepts and learning objectives should be.
+            2. Use clear and explicit step-by-step reasoning throughout your explanation.
+            3. Break down complex ideas into understandable components.
+            4. Provide examples, analogies, and illustrations where helpful.
+            5. Show your thought process as you develop this educational content.
+            6. Format your response with markdown for readability.
+            7. Maintain educational accuracy while making the content engaging.
+            
+            For {audience_level} level students, tailor your language, examples, and depth appropriately.
+            """
+            
+            # Process with DeepSeek model
+            with st.spinner(f"Generating {content_type.lower()} with DeepSeek reasoning..."):
+                try:
+                    response = generate_content_with_deepseek(
+                        prompt=system_instruction,
+                        temperature=temperature_value,
+                        max_tokens=4096
+                    )
+                    
+                    # Add response to chat history
+                    st.session_state.reasoning_messages.append({"role": "assistant", "content": response})
+                    
+                    # Clear input
+                    st.session_state["deepseek_input"] = ""
+                    
+                    # Refresh the display
+                    st.rerun()
+                    
+                except Exception as e:
+                    error_message = f"I apologize, but I encountered an error when using the DeepSeek model: {str(e)}"
+                    st.session_state.reasoning_messages.append({"role": "assistant", "content": error_message})
+                    st.rerun()
+                    
+        # Display helpful information for first-time users
+        if len(st.session_state.reasoning_messages) <= 1:
+            st.markdown("""
+            <div style="background-color: #f9f2ee; padding: 15px; border-radius: 10px; margin-top: 20px;">
+                <h4 style="color: #d85b31;">💡 How to use the DeepSeek Reasoning Assistant</h4>
+                <p>The DeepSeek R1 Distill Qwen 32B model is specially designed for strong reasoning capabilities to create high-quality educational content. Try asking for:</p>
+                <ul>
+                    <li>In-depth concept explanations with step-by-step reasoning</li>
+                    <li>Complex problem solutions that show all thinking steps</li>
+                    <li>Educational content that breaks down difficult topics</li>
+                    <li>Step-by-step tutorials that reveal the reasoning process</li>
+                    <li>Detailed lesson plans with pedagogical reasoning</li>
+                </ul>
+                <p>The assistant will reveal its reasoning process as it creates educational content.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+# Learning Assistant tab (ORIGINAL)
+with selected_tab[0]:
 
 # Create tabs
 selected_tab = st.tabs(tab_names)
@@ -756,675 +921,3 @@ with selected_tab[0]:
                 error_message = f"I apologize, but I encountered an error: {str(e)}"
                 st.session_state.tutor_messages.append({"role": "assistant", "content": error_message})
                 st.rerun()
-
-# Document Analysis tab
-with selected_tab[1]:
-    if st.session_state.current_mode != "Document Analysis":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Document Analysis"
-    
-    st.markdown("### AI-Powered Document Analysis")
-    st.markdown("Upload study materials, textbooks, or notes for AI analysis and insights")
-    
-    # Add API selection for document analysis
-    api_choice = st.radio("Select AI model for document analysis:", 
-                          ["Groq (faster processing)", "Google Gemini (better for visuals)"])
-    
-    # Disable unavailable options
-    if api_choice.startswith("Groq") and not use_groq:
-        st.warning("Groq API is not available. Please install the groq package and provide your API key.")
-    
-    if api_choice.startswith("Google") and not use_gemini:
-        st.warning("Gemini API is not available. Please install the google-generativeai package and provide your API key.")
-    
-    uploaded_file = st.file_uploader("Upload a document (PDF, DOCX, or TXT):", type=["pdf", "docx", "txt"])
-    
-    # Add manual text input option as a fallback
-    manual_text_input = st.text_area(
-        "Or paste document content here:",
-        height=200, 
-        placeholder="Paste the content of your document here if file upload doesn't work properly..."
-    )
-    
-    if uploaded_file is not None or manual_text_input:
-        analysis_type = st.multiselect("Select analysis types:", 
-                                      ["Key Concepts Extraction", "Summary Generation", 
-                                       "Difficulty Assessment", "Concept Relations", 
-                                       "Generate Study Questions"])
-        
-        if st.button("Analyze Document", use_container_width=True):
-            with st.spinner("Analyzing document..."):
-                try:
-                    file_content = ""
-                    file_name = "pasted text"
-                    
-                    if uploaded_file is not None:
-                        file_name = uploaded_file.name
-                        # Get file content as bytes
-                        file_bytes = uploaded_file.getvalue()
-                        
-                        # Process based on file type
-                        if uploaded_file.type == "text/plain":
-                            # For text files
-                            file_content = file_bytes.decode('utf-8')
-                        elif uploaded_file.name.lower().endswith('.pdf'):
-                            # For PDF files
-                            try:
-                                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-                                for page in pdf_reader.pages:
-                                    extracted_text = page.extract_text()
-                                    if extracted_text:  # Only add if text was actually extracted
-                                        file_content += extracted_text + "\n"
-                                
-                                if not file_content.strip():
-                                    st.warning("The PDF appears to be image-based or has no extractable text. Using Groq for better processing.")
-                                    api_choice = "Groq (faster processing)"
-                                    file_content = f"[Image-based PDF: {uploaded_file.name}]"
-                            except Exception as pdf_error:
-                                st.error(f"Error extracting PDF content: {str(pdf_error)}")
-                                file_content = f"[Unable to extract content from {uploaded_file.name}]"
-                        else:
-                            # For other file types
-                            file_content = f"[Content of {uploaded_file.name} - {uploaded_file.type}]"
-                    elif manual_text_input:
-                        # Use the pasted text instead
-                        file_content = manual_text_input
-                    
-                    # If the file content is large, trim it only if using Gemini (Groq can handle larger contexts)
-                    if api_choice == "Google Gemini (better for visuals)" and len(file_content) > 10000:
-                        file_content = file_content[:10000] + "... [content truncated due to size]"
-                    
-                    # Create prompt for document analysis
-                    analysis_prompt = f"I'm analyzing document: '{file_name}'. "
-                    analysis_prompt += f"Please perform the following analyses: {', '.join(analysis_type)}. "
-                    analysis_prompt += "Here's the document content: " + file_content
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{file_name}' for: {', '.join(analysis_type)}"})
-                    
-                    # Generate response based on selected API
-                    if api_choice.startswith("Groq") and use_groq:
-                        try:
-                            # Use Groq for document analysis
-                            with st.status("Processing with Groq..."):
-                                response_text = generate_content_with_groq(
-                                    prompt=analysis_prompt,
-                                    temperature=0.6
-                                )
-                        except Exception as e:
-                            st.error(f"Groq API error: {str(e)}")
-                            # Fallback to Gemini if available
-                            if use_gemini:
-                                st.info("Falling back to Gemini API...")
-                                response_text = generate_content(
-                                    prompt=analysis_prompt,
-                                    model_name=get_model_name("document"),
-                                    temperature=0.3
-                                )
-                            else:
-                                response_text = f"Error with Groq API: {str(e)}. Please check your API key or try again later."
-                    elif use_gemini:
-                        # Use Gemini for document analysis
-                        response_text = generate_content(
-                            prompt=analysis_prompt,
-                            model_name=get_model_name("document"),
-                            temperature=0.3
-                        )
-                    else:
-                        # Use fallback
-                        response_text = generate_text_fallback(analysis_prompt)
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "assistant", "content": response_text})
-                    
-                except Exception as e:
-                    st.error(f"Error analyzing document: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")
-
-# Visual Learning tab
-with selected_tab[2]:
-    if st.session_state.current_mode != "Visual Learning":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Visual Learning"
-        
-    st.markdown("### Visual Learning Analysis")
-    st.markdown("Upload images, diagrams, or visual problems for AI explanation and tutoring")
-    
-    # Image upload section
-    uploaded_image = st.file_uploader("Upload an image:", type=["jpg", "jpeg", "png", "gif"], key="visual_learning_image")
-    
-    if uploaded_image:
-        # Display the uploaded image
-        image = Image.open(uploaded_image)
-        st.image(image, caption=f"Uploaded: {uploaded_image.name}", use_column_width=True)
-        
-        # Analysis type selection
-        analysis_types = st.multiselect(
-            "What would you like me to do with this image?",
-            [
-                "Explain the concept shown", 
-                "Identify key elements",
-                "Provide step-by-step solution", 
-                "Relate to curriculum topics",
-                "Generate practice questions", 
-                "Explain in simpler terms"
-            ],
-            default=["Explain the concept shown"]
-        )
-        
-        # Add subject context
-        subject_area = st.selectbox(
-            "Subject area:",
-            ["General", "Mathematics", "Physics", "Chemistry", "Biology", "Computer Science", 
-             "History", "Geography", "Literature", "Art", "Music", "Economics"]
-        )
-        
-        # Education level
-        education_level = st.select_slider(
-            "Education level:",
-            options=["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Professional"],
-            value="High School"
-        )
-        
-        # Custom query
-        custom_prompt = st.text_area(
-            "Additional instructions (optional):",
-            placeholder="E.g., 'Focus on how this relates to Newton's Laws' or 'Explain how to solve this equation'"
-        )
-        
-        # Process the image
-        if st.button("Analyze Image", use_container_width=True):
-            if not use_gemini:
-                st.error("Gemini API is required for image analysis. Please set up the API key.")
-            else:
-                with st.spinner("Analyzing your image..."):
-                    try:
-                        # Prepare the image data
-                        img_byte_arr = io.BytesIO()
-                        image.save(img_byte_arr, format=image.format if image.format else 'JPEG')
-                        img_data = img_byte_arr.getvalue()
-                        
-                        # Create prompt based on selections
-                        prompt = f"I'm a student at the {education_level} level studying {subject_area}. "
-                        prompt += f"Please analyze this image and {', '.join(analysis_types).lower()}. "
-                        
-                        if custom_prompt:
-                            prompt += f"Additional instructions: {custom_prompt}"
-                        
-                        # Generate response
-                        response = generate_content(
-                            prompt=prompt,
-                            model_name=get_model_name("image"),
-                            image_data=img_data,
-                            temperature=0.2
-                        )
-                        
-                        # Display the response
-                        st.markdown("### Analysis Results")
-                        st.markdown(response)
-                        
-                        # Add to history
-                        st.session_state.chat_history.append({
-                            "role": "user", 
-                            "content": f"Analyze image {uploaded_image.name}: {prompt}"
-                        })
-                        st.session_state.chat_history.append({
-                            "role": "assistant", 
-                            "content": response
-                        })
-                        
-                    except Exception as e:
-                        st.error(f"Error analyzing image: {str(e)}")
-    else:
-        st.info("Please upload an image to begin analysis")
-        
-        # Example showcase
-        with st.expander("Examples of what you can analyze"):
-            st.markdown("""
-            - **Math problems** - Get step-by-step solutions
-            - **Science diagrams** - Get detailed explanations of processes
-            - **Charts and graphs** - Understand data visualizations
-            - **Historical artifacts** - Learn about historical context
-            - **Technical illustrations** - Understand complex systems
-            - **Biological diagrams** - Explore anatomy and processes
-            - **Chemistry structures** - Understand molecular compositions
-            """)
-
-# Quiz Generator tab
-with selected_tab[3]:
-    if st.session_state.current_mode != "Quiz Generator":
-        st.session_state.current_mode = "Quiz Generator"
-        
-    st.markdown("### AI Quiz Generator")
-    st.markdown("Create custom quizzes for any subject and learning level")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        quiz_subject = st.text_input("Subject or topic:", placeholder="E.g., World War II, Photosynthesis, Calculus")
-        quiz_level = st.select_slider(
-            "Difficulty level:",
-            options=["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Expert"],
-            value="High School"
-        )
-    
-    with col2:
-        quiz_type = st.selectbox(
-            "Question type:",
-            ["Multiple Choice", "True/False", "Short Answer", "Fill in the Blank", "Mixed"]
-        )
-        question_count = st.slider("Number of questions:", min_value=3, max_value=20, value=5)
-    
-    # Additional options
-    with st.expander("Advanced Options"):
-        include_answers = st.checkbox("Include answers", value=True)
-        include_explanations = st.checkbox("Include explanations", value=True)
-        specific_topics = st.text_area("Focus on specific subtopics (optional):", 
-                                      placeholder="E.g., 'Focus on European theater' or 'Only cover derivatives'")
-    
-    # Generate quiz button
-    if st.button("Generate Quiz", use_container_width=True):
-        if not quiz_subject:
-            st.warning("Please enter a subject or topic for the quiz.")
-        else:
-            with st.spinner("Creating your custom quiz..."):
-                try:
-                    # Build prompt
-                    prompt = f"Create a {quiz_level} level quiz about {quiz_subject} with {question_count} {quiz_type} questions. "
-                    
-                    if specific_topics:
-                        prompt += f"Focus on these specific subtopics: {specific_topics}. "
-                    
-                    prompt += "Format the quiz nicely with markdown. "
-                    
-                    if include_answers:
-                        prompt += "Include the correct answers. "
-                    
-                    if include_explanations:
-                        prompt += "Provide brief explanations for each answer. "
-                    
-                    # Get response
-                    if use_gemini:
-                        response = generate_content(
-                            prompt=prompt,
-                            model_name=get_model_name("chat"),
-                            temperature=0.7
-                        )
-                    else:
-                        response = generate_text_fallback(prompt)
-                    
-                    # Display quiz
-                    st.markdown("## Your Custom Quiz")
-                    st.markdown(response)
-                    
-                    # Add download option
-                    quiz_filename = f"{quiz_subject.replace(' ', '_').lower()}_quiz.md"
-                    st.download_button(
-                        label="Download Quiz",
-                        data=response,
-                        file_name=quiz_filename,
-                        mime="text/markdown"
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Error generating quiz: {str(e)}")
-
-# Educational Content Analysis tab
-with selected_tab[4]:
-    if st.session_state.current_mode != "Educational Content Analysis":
-        st.session_state.edu_results = {}  # Initialize results storage
-        st.session_state.current_mode = "Educational Content Analysis"
-    
-    st.markdown("### Educational Content Analysis")
-    st.markdown("Upload educational videos or audio for AI-powered analysis of teaching content and strategies")
-    
-    # Check for Gemini API suitability
-    if not use_gemini:
-        st.warning("⚠️ Gemini API is not available. Please install the google-generativeai package and set your API key to use this feature.")
-    elif not check_gemini_multimodal_support():
-        st.warning("⚠️ Your current Gemini API setup may not fully support multimodal analysis. Results may be limited.")
-    
-    # Create columns for video and audio uploads
-    col1, col2 = st.columns(2)
-    
-    video_file = None
-    audio_file = None
-    
-    with col1:
-        st.subheader("Video Analysis")
-        video_file = st.file_uploader("Upload educational video:", 
-                                    type=["mp4", "mov", "webm"], 
-                                    key="edu_video",
-                                    help="Upload a video of educational content for AI analysis")
-        
-        # Video settings
-        if video_file:
-            # Display video preview with proper handling
-            try:
-                # Create a temp file to properly display the video
-                with tempfile.NamedTemporaryFile(delete=False, suffix=f".{video_file.name.split('.')[-1]}") as tmp_file:
-                    tmp_file.write(video_file.getvalue())
-                    video_path = tmp_file.name
-                
-                # Display the video
-                st.video(video_path)
-                
-                # Remove temp file after displaying
-                try:
-                    os.unlink(video_path)
-                except:
-                    pass  # Ignore errors in cleanup
-                
-            except Exception as e:
-                st.error(f"Error displaying video preview: {str(e)}")
-                st.info("Video preview not available, but analysis can still be performed.")
-            
-            # Show video details
-            video_size_mb = len(video_file.getvalue()) / (1024 * 1024)
-            st.info(f"Video: {video_file.name} ({video_file.type}, {video_size_mb:.2f} MB)")
-            
-            # Warning for large files
-            if video_size_mb > 20:
-                st.warning("⚠️ Large video file detected. Analysis may take longer and could be less accurate. Consider using a shorter clip for better results.")
-    
-    with col2:
-        st.subheader("Audio Analysis") 
-        audio_file = st.file_uploader("Upload educational audio:", 
-                                    type=["mp3", "wav", "m4a"], 
-                                    key="edu_audio",
-                                    help="Upload educational audio for content and teaching analysis")
-        
-        if audio_file:
-            # Display audio player with proper handling
-            try:
-                # Create a temp file to properly display the audio
-                with tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_file.name.split('.')[-1]}") as tmp_file:
-                    tmp_file.write(audio_file.getvalue())
-                    audio_path = tmp_file.name
-                
-                # Display the audio
-                st.audio(audio_path)
-                
-                # Remove temp file after displaying
-                try:
-                    os.unlink(audio_path)
-                except:
-                    pass  # Ignore errors in cleanup
-                
-            except Exception as e:
-                st.error(f"Error displaying audio preview: {str(e)}")
-                st.info("Audio preview not available, but analysis can still be performed.")
-            
-            # Show audio details
-            audio_size_mb = len(audio_file.getvalue()) / (1024 * 1024)
-            st.info(f"Audio: {audio_file.name} ({audio_file.type}, {audio_size_mb:.2f} MB)")
-            
-            # Warning for large files
-            if audio_size_mb > 10:
-                st.warning("⚠️ Large audio file detected. Analysis may take longer. Consider using a shorter clip for better results.")
-    
-    # Add a context selection with improved descriptions
-    st.subheader("Analysis Context")
-    context_options = st.multiselect(
-        "Select educational contexts to consider:",
-        [
-            "Elementary Education (K-5)", 
-            "Middle School (6-8)",
-            "High School (9-12)",
-            "Higher Education", 
-            "Professional Development", 
-            "Special Education",
-            "Online Learning", 
-            "STEM Education"
-        ],
-        default=["Elementary Education (K-5)"]
-    )
-    
-    # Additional analysis parameters
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        focus_areas = st.multiselect(
-            "Focus areas for analysis:",
-            [
-                "Teaching Methods", 
-                "Content Accuracy", 
-                "Learning Objectives",
-                "Engagement Strategies",
-                "Instructional Clarity",
-                "Pedagogical Approach",
-                "Content Organization"
-            ],
-            default=["Teaching Methods", "Content Accuracy"]
-        )
-    
-    with col2:
-        thoroughness = st.select_slider(
-            "Analysis thoroughness:",
-            options=["Basic", "Standard", "Detailed"],
-            value="Standard",
-            help="More thorough analysis will take longer but provide more detailed insights"
-        )
-    
-    # Analysis button
-    analyze_button = st.button("Analyze Educational Content", 
-                              use_container_width=True,
-                              disabled=not (video_file or audio_file) or not use_gemini)
-    
-    if analyze_button and (video_file or audio_file):
-        with st.spinner("Analyzing educational content..."):
-            try:
-                # Create content analyzer
-                content_analyzer = EducationalContentAnalyzer()
-                
-                # Prepare context information dictionary
-                context_info = {
-                    "contexts": context_options,
-                    "focus_areas": focus_areas,
-                    "thoroughness": thoroughness
-                }
-                
-                # Display progress information
-                analysis_progress = st.progress(0)
-                status_text = st.empty()
-                
-                # Update status
-                status_text.text("Initializing analysis...")
-                analysis_progress.progress(10)
-                
-                # Process content with context awareness
-                if video_file and audio_file:
-                    status_text.text("Analyzing video and audio content...")
-                    analysis_progress.progress(25)
-                elif video_file:
-                    status_text.text("Analyzing video content...")
-                    analysis_progress.progress(25)
-                else:
-                    status_text.text("Analyzing audio content...")
-                    analysis_progress.progress(25)
-                
-                # Perform the analysis with context information
-                results = content_analyzer.analyze_content(video_file, audio_file, context_info)
-                
-                # Update progress
-                status_text.text("Processing results...")
-                analysis_progress.progress(75)
-                
-                # Store results in session state for persistence
-                st.session_state.edu_results = results
-                
-                # Complete progress
-                analysis_progress.progress(100)
-                status_text.text("Analysis complete!")
-                
-                # Clear progress indicators after a moment
-                time.sleep(1)
-                status_text.empty()
-                analysis_progress.empty()
-                
-                # Display results in a styled container
-                st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-                st.markdown('<h2 class="analysis-title">Educational Content Analysis Results</h2>', unsafe_allow_html=True)
-                
-                # Add timestamp and context
-                st.markdown(f"**Analysis time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                st.markdown(f"**Educational contexts:** {', '.join(context_options)}")
-                st.markdown(f"**Focus areas:** {', '.join(focus_areas)}")
-                st.markdown(f"**Analysis level:** {thoroughness}")
-                
-                # Video results
-                if video_file and results.get("video_analysis"):
-                    st.subheader("📹 Video Analysis")
-                    st.markdown('<div class="analysis-content">', unsafe_allow_html=True)
-                    for analysis in results["video_analysis"]:
-                        st.markdown(analysis)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Audio results
-                if audio_file and results.get("audio_analysis"):
-                    st.subheader("🔊 Audio Analysis")
-                    st.markdown('<div class="analysis-content">', unsafe_allow_html=True)
-                    for analysis in results["audio_analysis"]:
-                        st.markdown(analysis)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Prepare download report with enhanced formatting
-                report_content = f"""
-                # Educational Content Analysis Report
-                
-                ## Analysis Overview
-                - **Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                - **Educational Contexts:** {', '.join(context_options)}
-                - **Focus Areas:** {', '.join(focus_areas)}
-                - **Analysis Level:** {thoroughness}
-                
-                ## Files Analyzed
-                {f"- **Video:** {video_file.name} ({video_file.type}, {len(video_file.getvalue()) / (1024 * 1024):.2f} MB)" if video_file else "- No video analyzed"}
-                {f"- **Audio:** {audio_file.name} ({audio_file.type}, {len(audio_file.getvalue()) / (1024 * 1024):.2f} MB)" if audio_file else "- No audio analyzed"}
-                
-                ## Video Analysis
-                {results["video_analysis"][0] if video_file and results.get("video_analysis") else 'No video analyzed'}
-                
-                ## Audio Analysis
-                {results["audio_analysis"][0] if audio_file and results.get("audio_analysis") else 'No audio analyzed'}
-                
-                ## Report Generated by EduGenius
-                This analysis is intended as a helpful tool for educators to improve content delivery and teaching strategies.
-                """
-                
-                # Download button for the report
-                st.download_button(
-                    label="Download Full Analysis Report",
-                    data=report_content,
-                    file_name=f"educational_content_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                    mime="text/markdown"
-                )
-                
-                # Add a JSON export option for developers or data integration
-                report_json = json.dumps({
-                    "timestamp": datetime.now().isoformat(),
-                    "contexts": context_options,
-                    "focus_areas": focus_areas,
-                    "thoroughness": thoroughness,
-                    "video_analysis": results.get("video_analysis", []),
-                    "audio_analysis": results.get("audio_analysis", [])
-                }, indent=2)
-                
-                st.download_button(
-                    label="Export JSON Data",
-                    data=report_json,
-                    file_name=f"content_analysis_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                    mime="application/json",
-                    key="json_download"
-                )
-                
-            except Exception as e:
-                st.error(f"Error during analysis: {str(e)}")
-                st.markdown("Please try again with a different file or check that your API keys are correctly set.")
-                logger.error(f"Content analysis error: {str(e)}")
-    
-    # Display previously generated results if they exist
-    elif hasattr(st.session_state, 'edu_results') and st.session_state.edu_results:
-        st.info("Displaying previously generated results. Upload new files and click 'Analyze Educational Content' to run a new analysis.")
-        
-        results = st.session_state.edu_results
-        
-        # Display results in a styled container
-        st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
-        st.markdown('<h2 class="analysis-title">Previous Analysis Results</h2>', unsafe_allow_html=True)
-        
-        # Video results
-        if results.get("video_analysis"):
-            st.subheader("📹 Video Analysis")
-            st.markdown('<div class="analysis-content">', unsafe_allow_html=True)
-            for analysis in results["video_analysis"]:
-                st.markdown(analysis)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Audio results
-        if results.get("audio_analysis"):
-            st.subheader("🔊 Audio Analysis")
-            st.markdown('<div class="analysis-content">', unsafe_allow_html=True)
-            for analysis in results["audio_analysis"]:
-                st.markdown(analysis)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Display helpful information if no files uploaded
-    elif not video_file and not audio_file:
-        st.info("Please upload a video or audio file to begin the educational content analysis.")
-        
-        # Add example scenarios
-        with st.expander("Example Use Cases"):
-            st.markdown("""
-            ### How to Use Educational Content Analysis
-            
-            - **Lesson Review**: Analyze recorded lessons to improve teaching strategies
-            - **Content Quality Assessment**: Evaluate educational videos or podcasts
-            - **Teaching Method Evaluation**: Get insights on your teaching approaches
-            - **Instructional Design**: Assess the structure and flow of your educational content
-            - **Professional Development**: Use feedback to enhance teaching skills
-            - **Content Creation**: Get suggestions for improving educational materials
-            """)
-            
-        # Add tips for best results
-        with st.expander("Tips for Best Results"):
-            st.markdown("""
-            ### Getting the Most Valuable Analysis
-            
-            1. **Keep videos focused** (3-5 minutes) on specific teaching segments
-            2. **Ensure good audio quality** for clearer speech recognition
-            3. **Select relevant educational contexts** that match your setting
-            4. **Choose focus areas** that align with what you want to improve
-            5. **Use 'Detailed' thoroughness** for comprehensive pedagogical feedback
-            6. **Provide context in filenames** (e.g., "algebra_introduction_grade8.mp4")
-            7. **Analyze multiple teaching samples** over time to track improvement
-            """)
-
-# Main entry point - This will run the Streamlit app
-if __name__ == "__main__":
-    # Check for missing dependencies and display warning
-    if not HAS_GEMINI and not HAS_GROQ:
-        st.warning("""
-        ⚠️ Required API packages are missing. For full functionality, please install:
-        ```
-        pip install google-generativeai groq
-        ```
-        """)
-    
-    # Print startup message to console
-    logger.info("EduGenius started successfully")
-    logger.info(f"Gemini API available: {use_gemini}")
-    logger.info(f"Groq API available: {use_groq}")
