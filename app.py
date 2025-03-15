@@ -4,7 +4,8 @@ from PIL import Image
 import io
 import os
 import tempfile
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
@@ -82,29 +83,41 @@ st.markdown("""
 def get_gemini_client():
     # In production, use a more secure way to store API keys
     api_key = "AIzaSyCl9IcFv0Qv72XvrrKyN2inQ8RG_12Xr6s"  # Replace with st.secrets["GEMINI_API_KEY"] in production
-    genai.configure(api_key=api_key)
-    return genai
+    return genai.Client(api_key=api_key)
 
 # Initialize the client
-get_gemini_client()
-model_name = "gemini-2.0-flash"  # Using Gemini 1.5 Flash model
+client = get_gemini_client()
+model_name = "gemini-2.0-flash"  # Using Gemini 2.0 Flash model
 
 # Common generation config
 def get_generation_config(temperature=0.7):
-    return {
-        "temperature": temperature,
-        "top_p": 0.95,
-        "top_k": 40,
-        "max_output_tokens": 4096,
-    }
+    return types.GenerateContentConfig(
+        temperature=temperature,
+        top_p=0.95,
+        top_k=40,
+        max_output_tokens=4096,
+    )
 
-# Safety settings
-safety_settings = [
-    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
-]
+# Safety settings for request (now handled differently in the new API)
+def get_safety_settings():
+    return [
+        {
+            "category": types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+            "category": types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+            "category": types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+        {
+            "category": types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        },
+    ]
 
 # Initialize session state variables
 if "chat_history" not in st.session_state:
@@ -292,22 +305,29 @@ with selected_tab[0]:
         
         with st.spinner("Thinking..."):
             try:
-                # Create a generative model instance
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=get_generation_config(temperature=0.7),
-                    safety_settings=safety_settings
-                )
+                # Prepare content for generation
+                contents = []
                 
-                # Generate response based on whether there's multimedia
+                # Create user message
                 if has_multimedia and media_type == "image":
-                    response = model.generate_content([
-                        prompt,
-                        {"mime_type": "image/jpeg", "data": media_bytes}
-                    ])
+                    # For image content
+                    parts = [
+                        types.Part.from_text(text=prompt),
+                        types.Part.from_data(data=media_bytes, mime_type="image/jpeg")
+                    ]
+                    contents.append(types.Content(role="user", parts=parts))
                 else:
-                    # For text-only or other media types (which we're simulating for now)
-                    response = model.generate_content(prompt)
+                    # For text-only content
+                    parts = [types.Part.from_text(text=prompt)]
+                    contents.append(types.Content(role="user", parts=parts))
+                
+                # Generate content
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    generation_config=get_generation_config(temperature=0.7),
+                    safety_settings=get_safety_settings()
+                )
                 
                 # Extract response text
                 response_text = response.text
@@ -367,15 +387,21 @@ with selected_tab[1]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
                     
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
+                    # Prepare content for generation
+                    contents = [
+                        types.Content(
+                            role="user",
+                            parts=[types.Part.from_text(text=analysis_prompt)]
+                        )
+                    ]
                     
                     # Generate content
-                    response = model.generate_content(analysis_prompt)
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=get_safety_settings()
+                    )
                     
                     # Extract response text
                     response_text = response.text
@@ -454,18 +480,24 @@ with selected_tab[2]:
                         image.save(img_byte_arr, format='PNG')
                         img_byte_arr = img_byte_arr.getvalue()
                         
-                        # Create a generative model instance
-                        model = genai.GenerativeModel(
-                            model_name=model_name,
-                            generation_config=get_generation_config(temperature=0.2),
-                            safety_settings=safety_settings
-                        )
+                        # Prepare content for generation
+                        contents = [
+                            types.Content(
+                                role="user",
+                                parts=[
+                                    types.Part.from_text(text=image_chat_input),
+                                    types.Part.from_data(data=img_byte_arr, mime_type="image/png")
+                                ]
+                            )
+                        ]
                         
-                        # Prepare multipart content
-                        response = model.generate_content([
-                            image_chat_input,
-                            {"mime_type": "image/png", "data": img_byte_arr}
-                        ])
+                        # Generate content
+                        response = client.models.generate_content(
+                            model=model_name,
+                            contents=contents,
+                            generation_config=get_generation_config(temperature=0.2),
+                            safety_settings=get_safety_settings()
+                        )
                         
                         # Extract response text
                         response_text = response.text
@@ -494,18 +526,24 @@ with selected_tab[2]:
                     image.save(img_byte_arr, format='PNG')
                     img_byte_arr = img_byte_arr.getvalue()
                     
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
+                    # Prepare content for generation
+                    contents = [
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_text(text=image_prompt),
+                                types.Part.from_data(data=img_byte_arr, mime_type="image/png")
+                            ]
+                        )
+                    ]
                     
-                    # Prepare multipart content
-                    response = model.generate_content([
-                        image_prompt,
-                        {"mime_type": "image/png", "data": img_byte_arr}
-                    ])
+                    # Generate content
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=get_safety_settings()
+                    )
                     
                     # Extract response text
                     response_text = response.text
@@ -566,12 +604,13 @@ with selected_tab[3]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"[Audio uploaded] Please analyze with: {', '.join(analysis_options)}"})
                     
-                    # Create a generative model instance for audio
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
+                    # Prepare content for generation (audio analysis)
+                    contents = [
+                        types.Content(
+                            role="user",
+                            parts=[types.Part.from_text(text=audio_prompt)]
+                        )
+                    ]
                     
                     # In production, you would process the audio file here
                     # For demo purposes, simulate the audio analysis
@@ -679,12 +718,13 @@ with selected_tab[4]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
                     
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
+                    # Prepare content for generation (video analysis)
+                    contents = [
+                        types.Content(
+                            role="user",
+                            parts=[types.Part.from_text(text=video_prompt)]
+                        )
+                    ]
                     
                     # In production, you would process the video file here
                     # For demo purposes, simulate the video analysis
@@ -903,15 +943,21 @@ with selected_tab[5]:
                 # Add to history
                 st.session_state.chat_history.append({"role": "user", "content": quiz_prompt})
                 
-                # Create a generative model instance
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=get_generation_config(temperature=0.3),
-                    safety_settings=safety_settings
-                )
+                # Prepare content for generation
+                contents = [
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=quiz_prompt)]
+                    )
+                ]
                 
                 # Generate content
-                response = model.generate_content(quiz_prompt)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    generation_config=get_generation_config(temperature=0.3),
+                    safety_settings=get_safety_settings()
+                )
                 
                 # Extract response text
                 response_text = response.text
