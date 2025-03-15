@@ -4,8 +4,7 @@ from PIL import Image
 import io
 import os
 import tempfile
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 # Set page configuration
 st.set_page_config(page_title="EduGenius - AI Learning Assistant", 
@@ -83,41 +82,29 @@ st.markdown("""
 def get_gemini_client():
     # In production, use a more secure way to store API keys
     api_key = "AIzaSyCl9IcFv0Qv72XvrrKyN2inQ8RG_12Xr6s"  # Replace with st.secrets["GEMINI_API_KEY"] in production
-    return genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
+    return genai
 
 # Initialize the client
-client = get_gemini_client()
+get_gemini_client()
 model_name = "gemini-2.0-flash"  # Using Gemini 2.0 Flash model
 
 # Common generation config
 def get_generation_config(temperature=0.7):
-    return types.GenerateContentConfig(
-        temperature=temperature,
-        top_p=0.95,
-        top_k=40,
-        max_output_tokens=4096,
-    )
+    return {
+        "temperature": temperature,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_output_tokens": 4096,
+    }
 
-# Safety settings for request (now handled differently in the new API)
-def get_safety_settings():
-    return [
-        {
-            "category": types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-            "category": types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-            "category": types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-            "category": types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            "threshold": types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-    ]
+# Safety settings
+safety_settings = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
+]
 
 # Initialize session state variables
 if "chat_history" not in st.session_state:
@@ -1073,15 +1060,21 @@ with selected_tab[6]:
                 # Add to history
                 st.session_state.chat_history.append({"role": "user", "content": map_prompt})
                 
-                # Create a generative model instance
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=get_generation_config(temperature=0.3),
-                    safety_settings=safety_settings
-                )
+                # Prepare content for generation
+                contents = [
+                    types.Content(
+                        role="user",
+                        parts=[types.Part.from_text(text=map_prompt)]
+                    )
+                ]
                 
                 # Generate content
-                response = model.generate_content(map_prompt)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    generation_config=get_generation_config(temperature=0.3),
+                    safety_settings=get_safety_settings()
+                )
                 
                 # Extract response text
                 response_text = response.text
