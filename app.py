@@ -175,7 +175,7 @@ if st.session_state.first_visit:
         st.experimental_rerun()
 
 # App modes
-modes = ["Learning Assistant", "Document Analysis", "Visual Learning", "Audio Analysis", "Video Learning", "Quiz Generator", "Content Creation", "Concept Mapper"]
+modes = ["Learning Assistant", "Document Analysis", "Visual Learning", "Audio Analysis", "Video Learning", "Quiz Generator", "Concept Mapper"]
 selected_tab = st.tabs(modes)
 
 # Learning Assistant tab
@@ -365,7 +365,7 @@ with selected_tab[1]:
                     analysis_prompt += "Here's a preview of the document content: " + str(file_content_preview)
                     
                     # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {detail_level} {map_style} concept map for {main_concept} at {education_level} level"})"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
+                    st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
                     
                     # Create a generative model instance
                     model = genai.GenerativeModel(
@@ -393,821 +393,6 @@ with selected_tab[1]:
                         os.unlink(temp_file_path)
     
     # Display analysis history
-    st.markdown("### Analysis Results")
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**Request:** {message['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")
-
-# Quiz Generator tab
-with selected_tab[5]:
-    if st.session_state.current_mode != "Quiz Generator":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Quiz Generator"
-    
-    st.markdown("### AI Quiz Generator")
-    st.markdown("Create customized quizzes, tests, and assessments for any subject or topic")
-    
-    # Quiz configuration section
-    st.subheader("Quiz Configuration")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        subject = st.text_input("Subject or Topic:", placeholder="e.g., World War II, Photosynthesis, Python Programming")
-        education_level = st.selectbox("Educational Level:", 
-                                      ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate", "Professional"])
-        question_count = st.slider("Number of Questions:", min_value=3, max_value=20, value=5)
-    
-    with col2:
-        question_types = st.multiselect("Question Types:", 
-                                       ["Multiple Choice", "True/False", "Short Answer", "Fill in the Blank", "Matching"], 
-                                       default=["Multiple Choice"])
-        
-        difficulty = st.select_slider("Difficulty Level:", 
-                                     options=["Very Easy", "Easy", "Medium", "Hard", "Very Hard"], 
-                                     value="Medium")
-        
-        include_answers = st.checkbox("Include Answer Key", value=True)
-    
-    # Advanced options in expander
-    with st.expander("Advanced Options", expanded=False):
-        specific_topics = st.text_area("Focus on Specific Subtopics (optional):", 
-                                      placeholder="Enter specific topics to focus on, separated by commas")
-        
-        specific_concepts = st.text_area("Specific Concepts to Test (optional):", 
-                                        placeholder="Enter specific concepts to test, separated by commas")
-        
-        time_limit = st.number_input("Suggested Time Limit (minutes):", min_value=5, max_value=180, value=30, step=5)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            include_images = st.checkbox("Include Image-Based Questions", value=False)
-        
-        with col2:
-            randomize_options = st.checkbox("Randomize Answer Options", value=True)
-        
-        instruction_notes = st.text_area("Additional Instructions or Notes:", 
-                                        placeholder="Add any specific instructions or notes for the AI when generating the quiz")
-    
-    # Generate quiz button
-    if st.button("Generate Quiz", use_container_width=True):
-        if not subject:
-            st.warning("Please enter a subject or topic to generate a quiz.")
-        else:
-            with st.spinner("Generating quiz..."):
-                try:
-                    # Create prompt for quiz generation
-                    quiz_prompt = f"Create a {difficulty} difficulty quiz on {subject} for {education_level} level students. "
-                    quiz_prompt += f"Include {question_count} questions of the following types: {', '.join(question_types)}. "
-                    
-                    if specific_topics:
-                        quiz_prompt += f"Focus on these specific subtopics: {specific_topics}. "
-                    
-                    if specific_concepts:
-                        quiz_prompt += f"Test these specific concepts: {specific_concepts}. "
-                    
-                    if include_answers:
-                        quiz_prompt += "Include an answer key. "
-                    
-                    quiz_prompt += f"The quiz should take approximately {time_limit} minutes to complete. "
-                    
-                    if include_images:
-                        quiz_prompt += "Include descriptions for image-based questions where appropriate. "
-                    
-                    if randomize_options:
-                        quiz_prompt += "The answer options should be randomized. "
-                    
-                    if instruction_notes:
-                        quiz_prompt += f"Additional instructions: {instruction_notes}"
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {question_count}-question {difficulty} quiz on {subject} for {education_level} level"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.7),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # Generate content
-                    response = model.generate_content(quiz_prompt)
-                    
-                    # Extract response text
-                    quiz_content = response.text
-                    st.session_state.chat_history.append({"role": "assistant", "content": quiz_content})
-                    
-                    # Display the generated quiz with download option
-                    st.markdown("### Generated Quiz")
-                    st.markdown(quiz_content)
-                    
-                    # Create a download option for the quiz
-                    quiz_download = quiz_content.encode()
-                    st.download_button(
-                        label="Download Quiz",
-                        data=quiz_download,
-                        file_name=f"{subject.replace(' ', '_')}_quiz.md",
-                        mime="text/markdown"
-                    )
-                    
-                except Exception as e:
-                    st.error(f"Error generating quiz: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display quiz history
-    st.markdown("### Previously Generated Quizzes")
-    quiz_history_count = 0
-    
-    for i in range(0, len(st.session_state.chat_history), 2):
-        if i + 1 < len(st.session_state.chat_history):
-            if "Generate a" in st.session_state.chat_history[i]["content"] and "quiz" in st.session_state.chat_history[i]["content"]:
-                quiz_history_count += 1
-                with st.expander(f"Quiz {quiz_history_count}: {st.session_state.chat_history[i]['content']}", expanded=False):
-                    st.markdown(st.session_state.chat_history[i+1]["content"])
-                    
-                    # Add download button for each historical quiz
-                    quiz_download = st.session_state.chat_history[i+1]["content"].encode()
-                    st.download_button(
-                        label="Download This Quiz",
-                        data=quiz_download,
-                        file_name=f"quiz_{quiz_history_count}.md",
-                        mime="text/markdown",
-                        key=f"download_quiz_{quiz_history_count}"
-                    )
-
-# Content Creation tab (NEW)
-with selected_tab[6]:
-    if st.session_state.current_mode != "Content Creation":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Content Creation"
-    
-    st.markdown("### Educational Content Creator")
-    st.markdown("Generate customized educational materials powered by Gemini 1.5 Flash")
-    
-    # Content type selection
-    content_type = st.selectbox("Content Type:", 
-                              ["Lesson Plan", "Student Handout", "Lecture Notes", 
-                               "Educational Presentation", "Study Guide", 
-                               "Educational Infographic", "Interactive Worksheet"])
-    
-    # Content configuration
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        content_subject = st.text_input("Subject:", placeholder="e.g., Biology, Literature, Mathematics")
-        content_level = st.selectbox("Educational Level:", 
-                                   ["Elementary", "Middle School", "High School", 
-                                    "Undergraduate", "Graduate", "Professional Development"])
-        
-        learning_objectives = st.text_area("Learning Objectives:", 
-                                         placeholder="Enter the learning objectives, separated by new lines")
-    
-    with col2:
-        content_duration = st.slider("Estimated Duration (minutes):", 
-                                   min_value=15, max_value=120, value=45, step=15)
-        
-        teaching_style = st.selectbox("Teaching Style:", 
-                                    ["Traditional", "Inquiry-Based", "Project-Based", 
-                                     "Flipped Classroom", "Collaborative Learning", "Gamified"])
-        
-        accessibility_needs = st.multiselect("Accessibility Considerations:", 
-                                          ["Visual Impairments", "Hearing Impairments", 
-                                           "Attention Difficulties", "Language Barriers", 
-                                           "Physical Disabilities", "None"],
-                                          default=["None"])
-    
-    # Advanced content options
-    with st.expander("Advanced Content Options", expanded=False):
-        specific_content_topics = st.text_area("Specific Topics to Cover:", 
-                                            placeholder="Enter specific topics to include, separated by new lines")
-        
-        include_examples = st.checkbox("Include Real-World Examples", value=True)
-        include_assessments = st.checkbox("Include Assessment Activities", value=True)
-        include_resources = st.checkbox("Include Additional Resources", value=True)
-        
-        content_format = st.selectbox("Output Format:", 
-                                    ["Markdown", "Structured Text", "Rich Text", "Printable Layout"])
-        
-        additional_notes = st.text_area("Additional Instructions:", 
-                                      placeholder="Any specific requirements or preferences for the content")
-    
-    # Generate content button
-    if st.button("Generate Educational Content", use_container_width=True):
-        if not content_subject:
-            st.warning("Please enter a subject to generate content.")
-        else:
-            with st.spinner("Creating educational content..."):
-                try:
-                    # Create detailed prompt for content generation
-                    content_prompt = f"Create a {content_type} for teaching {content_subject} at the {content_level} level. "
-                    content_prompt += f"This should be designed for approximately {content_duration} minutes of educational time. "
-                    content_prompt += f"Use a {teaching_style} teaching style. "
-                    
-                    if learning_objectives:
-                        content_prompt += f"\n\nLearning Objectives:\n{learning_objectives}\n"
-                    
-                    if accessibility_needs and "None" not in accessibility_needs:
-                        content_prompt += f"\nInclude accommodations for: {', '.join(accessibility_needs)}. "
-                    
-                    if specific_content_topics:
-                        content_prompt += f"\n\nSpecific Topics to Cover:\n{specific_content_topics}\n"
-                    
-                    if include_examples:
-                        content_prompt += "\nInclude relevant real-world examples and applications. "
-                    
-                    if include_assessments:
-                        content_prompt += "\nInclude formative and summative assessment activities. "
-                    
-                    if include_resources:
-                        content_prompt += "\nSuggest additional resources and materials. "
-                    
-                    content_prompt += f"\nFormat the content as {content_format}. "
-                    
-                    if additional_notes:
-                        content_prompt += f"\nAdditional requirements: {additional_notes}"
-                    
-                    # Specify that this is for educational purposes
-                    content_prompt += "\n\nThis content will be used for educational purposes, so ensure it is accurate, engaging, and pedagogically sound."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Create a {content_type} on {content_subject} for {content_level} level using {teaching_style} approach"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.7),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # Generate content
-                    response = model.generate_content(content_prompt)
-                    
-                    # Extract response text
-                    generated_content = response.text
-                    st.session_state.chat_history.append({"role": "assistant", "content": generated_content})
-                    
-                    # Display the generated content with download option
-                    st.markdown("### Generated Educational Content")
-                    st.markdown(generated_content)
-                    
-                    # Create a download option for the content
-                    content_download = generated_content.encode()
-                    st.download_button(
-                        label="Download Content",
-                        data=content_download,
-                        file_name=f"{content_subject.replace(' ', '_')}_{content_type.replace(' ', '_')}.md",
-                        mime="text/markdown"
-                    )
-                    
-                    # Additional educator resources
-                    st.markdown("### Teacher Resources")
-                    
-                    # Create tabs for different resources
-                    resource_tabs = st.tabs(["Implementation Tips", "Extension Activities", "Modification Suggestions"])
-                    
-                    with resource_tabs[0]:
-                        st.markdown("#### Tips for Implementation")
-                        
-                        # Generate implementation tips
-                        implementation_prompt = f"Provide 5-7 practical tips for effectively implementing this {content_type} on {content_subject} for {content_level} students. Focus on classroom management, time optimization, and maximizing student engagement."
-                        
-                        # Create a generative model instance
-                        implementation_response = model.generate_content(implementation_prompt)
-                        st.markdown(implementation_response.text)
-                    
-                    with resource_tabs[1]:
-                        st.markdown("#### Extension Activities")
-                        
-                        # Generate extension activities
-                        extension_prompt = f"Suggest 3-5 extension activities for this {content_type} on {content_subject} for {content_level} students who finish early or need additional challenges. Include activities for different learning styles."
-                        
-                        # Create a generative model instance
-                        extension_response = model.generate_content(extension_prompt)
-                        st.markdown(extension_response.text)
-                    
-                    with resource_tabs[2]:
-                        st.markdown("#### Modification Suggestions")
-                        
-                        # Generate modification suggestions
-                        modification_prompt = f"Provide suggestions for modifying this {content_type} on {content_subject} for different learner needs, including struggling students, advanced students, and students with specific learning disabilities."
-                        
-                        # Create a generative model instance
-                        modification_response = model.generate_content(modification_prompt)
-                        st.markdown(modification_response.text)
-                    
-                except Exception as e:
-                    st.error(f"Error generating content: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display content history
-    st.markdown("### Previously Generated Content")
-    content_history_count = 0
-    
-    for i in range(0, len(st.session_state.chat_history), 2):
-        if i + 1 < len(st.session_state.chat_history):
-            if "Create" in st.session_state.chat_history[i]["content"] and any(content_type in st.session_state.chat_history[i]["content"] for content_type in ["Lesson Plan", "Student Handout", "Lecture Notes", "Presentation", "Study Guide", "Infographic", "Worksheet"]):
-                content_history_count += 1
-                with st.expander(f"Content {content_history_count}: {st.session_state.chat_history[i]['content']}", expanded=False):
-                    st.markdown(st.session_state.chat_history[i+1]["content"])
-                    
-                    # Add download button for each historical content
-                    content_download = st.session_state.chat_history[i+1]["content"].encode()
-                    st.download_button(
-                        label="Download This Content",
-                        data=content_download,
-                        file_name=f"educational_content_{content_history_count}.md",
-                        mime="text/markdown",
-                        key=f"download_content_{content_history_count}"
-                    )
-
-# Concept Mapper tab
-with selected_tab[7]:
-    if st.session_state.current_mode != "Concept Mapper":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Concept Mapper"
-    
-    st.markdown("### AI Concept Mapper")
-    st.markdown("Visualize connections between concepts and ideas to enhance understanding")
-    
-    # Concept map input
-    main_concept = st.text_input("Main Concept/Topic:", placeholder="e.g., Photosynthesis, American Revolution, Machine Learning")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        detail_level = st.select_slider("Level of Detail:", 
-                                      options=["Basic", "Moderate", "Detailed", "Comprehensive"], 
-                                      value="Moderate")
-        
-        map_style = st.selectbox("Concept Map Style:", 
-                               ["Hierarchical", "Spider/Radial", "Flowchart", "Mind Map", "Network Diagram"])
-    
-    with col2:
-        relation_types = st.multiselect("Relationship Types to Include:", 
-                                      ["Cause-Effect", "Part-Whole", "Sequential", "Comparative", 
-                                       "Categorical", "Process-Based", "Functional"], 
-                                      default=["Cause-Effect", "Part-Whole"])
-        
-        education_level = st.selectbox("Target Education Level:", 
-                                     ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate"])
-    
-    # Advanced mapping options
-    with st.expander("Advanced Mapping Options", expanded=False):
-        specific_subtopics = st.text_area("Include Specific Subtopics (optional):", 
-                                        placeholder="Enter specific subtopics to include, separated by commas")
-        
-        excluded_subtopics = st.text_area("Exclude Subtopics (optional):", 
-                                        placeholder="Enter subtopics to exclude, separated by commas")
-        
-        color_coding = st.checkbox("Use Color Coding for Different Concept Types", value=True)
-        include_definitions = st.checkbox("Include Brief Definitions for Key Terms", value=True)
-        include_examples = st.checkbox("Include Examples for Key Concepts", value=True)
-        
-        additional_instructions = st.text_area("Additional Instructions:", 
-                                             placeholder="Any specific requirements or preferences for the concept map")
-    
-    # Generate concept map button
-    if st.button("Generate Concept Map", use_container_width=True):
-        if not main_concept:
-            st.warning("Please enter a main concept to generate a map.")
-        else:
-            with st.spinner("Generating concept map..."):
-                try:
-                    # Create prompt for concept map generation
-                    map_prompt = f"Create a detailed {map_style} concept map for '{main_concept}' at a {detail_level} level of detail. "
-                    map_prompt += f"Target this for {education_level} level students. "
-                    map_prompt += f"Include these relationship types: {', '.join(relation_types)}. "
-                    
-                    if specific_subtopics:
-                        map_prompt += f"Include these specific subtopics: {specific_subtopics}. "
-                    
-                    if excluded_subtopics:
-                        map_prompt += f"Exclude these subtopics: {excluded_subtopics}. "
-                    
-                    if color_coding:
-                        map_prompt += "Use color coding to distinguish different types of concepts. "
-                    
-                    if include_definitions:
-                        map_prompt += "Include brief definitions for key terms. "
-                    
-                    if include_examples:
-                        map_prompt += "Include examples for key concepts. "
-                    
-                    if additional_instructions:
-                        map_prompt += f"Additional instructions: {additional_instructions} "
-                    
-                    # Specify format for the response
-                    map_prompt += """
-                    Format your response as a Mermaid diagram using the flowchart syntax. For example:
-
-                    ```mermaid
-                    flowchart TD
-                        A[Main Concept] --> B[Subtopic 1]
-                        A --> C[Subtopic 2]
-                        B --> D[Detail 1.1]
-                        B --> E[Detail 1.2]
-                        C --> F[Detail 2.1]
-                        C --> G[Detail 2.2]
-                    ```
-
-                    Use appropriate Mermaid syntax for your chosen map style, and include clear relationships between concepts.
-                    """
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"Generate a {detail_level} {map_style} concept map for {main_concept} at {education_level} level"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.3),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # Generate content
-                    response = model.generate_content(map_prompt)
-                    
-                    # Extract response text
-                    map_content = response.text
-                    
-                    # Extract the Mermaid diagram code
-                    mermaid_code = ""
-                    if "```mermaid" in map_content and "```" in map_content.split("```mermaid", 1)[1]:
-                        mermaid_code = map_content.split("```mermaid", 1)[1].split("```", 1)[0].strip()
-                    else:
-                        # If not properly formatted, attempt to extract anything that looks like a flowchart
-                        import re
-                        mermaid_match = re.search(r'flowchart [A-Z]{1,2}[\s\S]*?(?=```|$)', map_content)
-                        if mermaid_match:
-                            mermaid_code = mermaid_match.group(0)
-                        else:
-                            mermaid_code = "flowchart TD\n    A[Error: Could not generate proper concept map]"
-                    
-                    # Add the mermaid code to history
-                    full_response = map_content.replace("```mermaid", "").replace("```", "")
-                    st.session_state.chat_history.append({"role": "assistant", "content": full_response})
-                    
-                    # Display the concept map using Streamlit's mermaid component
-                    st.markdown("### Generated Concept Map")
-                    st.markdown(f"**{main_concept}** - {detail_level} Detail Level")
-                    
-                    # Display the mermaid diagram
-                    st.markdown(f"```mermaid\n{mermaid_code}\n```")
-                    
-                    # Provide text explanation
-                    st.markdown("### Map Explanation")
-                    
-                    # Generate explanation prompt
-                    explanation_prompt = f"Given this concept map about {main_concept}, provide a brief explanation of the key relationships and concepts shown in the map. Make this explanation appropriate for {education_level} level students."
-                    
-                    # Generate explanation
-                    explanation_response = model.generate_content(explanation_prompt + "\n\n" + mermaid_code)
-                    st.markdown(explanation_response.text)
-                    
-                    # Educational activities based on the concept map
-                    st.markdown("### Learning Activities")
-                    
-                    # Generate activities prompt
-                    activities_prompt = f"Suggest 3-5 educational activities that teachers or students can do with this concept map on {main_concept}. Target these for {education_level} level students."
-                    
-                    # Generate activities
-                    activities_response = model.generate_content(activities_prompt)
-                    st.markdown(activities_response.text)
-                    
-                    # Provide download options
-                    st.markdown("### Download Options")
-                    
-                    # Download as Mermaid code
-                    mermaid_download = mermaid_code.encode()
-                    st.download_button(
-                        label="Download Mermaid Code",
-                        data=mermaid_download,
-                        file_name=f"{main_concept.replace(' ', '_')}_concept_map.mmd",
-                        mime="text/plain",
-                        key="download_mermaid"
-                    )
-                    
-                    # Download as markdown with explanation
-                    markdown_content = f"""# Concept Map: {main_concept}
-
-## Map Diagram
-
-```mermaid
-{mermaid_code}
-```
-
-## Explanation
-
-{explanation_response.text}
-
-## Learning Activities
-
-{activities_response.text}
-"""
-                    markdown_download = markdown_content.encode()
-                    st.download_button(
-                        label="Download Complete Package (Markdown)",
-                        data=markdown_download,
-                        file_name=f"{main_concept.replace(' ', '_')}_concept_map_package.md",
-                        mime="text/markdown",
-                        key="download_package"
-                    )
-                
-                except Exception as e:
-                    st.error(f"Error generating concept map: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display concept map history
-    st.markdown("### Previously Generated Concept Maps")
-    map_history_count = 0
-    
-    for i in range(0, len(st.session_state.chat_history), 2):
-        if i + 1 < len(st.session_state.chat_history):
-            if "Generate" in st.session_state.chat_history[i]["content"] and "concept map" in st.session_state.chat_history[i]["content"]:
-                map_history_count += 1
-                with st.expander(f"Map {map_history_count}: {st.session_state.chat_history[i]['content']}", expanded=False):
-                    st.markdown(st.session_state.chat_history[i+1]["content"])
-
-    
-    st.markdown("### AI Concept Mapper")
-    st.markdown("Visualize connections between concepts and ideas to enhance understanding")
-    
-    # Concept map input
-    main_concept = st.text_input("Main Concept/Topic:", placeholder="e.g., Photosynthesis, American Revolution, Machine Learning")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        detail_level = st.select_slider("Level of Detail:", 
-                                      options=["Basic", "Moderate", "Detailed", "Comprehensive"], 
-                                      value="Moderate")
-        
-        map_style = st.selectbox("Concept Map Style:", 
-                               ["Hierarchical", "Spider/Radial", "Flowchart", "Mind Map", "Network Diagram"])
-    
-    with col2:
-        relation_types = st.multiselect("Relationship Types to Include:", 
-                                      ["Cause-Effect", "Part-Whole", "Sequential", "Comparative", 
-                                       "Categorical", "Process-Based", "Functional"], 
-                                      default=["Cause-Effect", "Part-Whole"])
-        
-        education_level = st.selectbox("Target Education Level:", 
-                                     ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate"])
-    
-    # Advanced mapping options
-    with st.expander("Advanced Mapping Options", expanded=False):
-        specific_subtopics = st.text_area("Include Specific Subtopics (optional):", 
-                                        placeholder="Enter specific subtopics to include, separated by commas")
-        
-        excluded_subtopics = st.text_area("Exclude Subtopics (optional):", 
-                                        placeholder="Enter subtopics to exclude, separated by commas")
-        
-        color_coding = st.checkbox("Use Color Coding for Different Concept Types", value=True)
-        include_definitions = st.checkbox("Include Brief Definitions for Key Terms", value=True)
-        include_examples = st.checkbox("Include Examples for Key Concepts", value=True)
-        
-        additional_instructions = st.text_area("Additional Instructions:", 
-                                             placeholder="Any specific requirements or preferences for the concept map")
-    
-    # Generate concept map button
-    if st.button("Generate Concept Map", use_container_width=True):
-        if not main_concept:
-            st.warning("Please enter a main concept to generate a map.")
-        else:
-            with st.spinner("Generating concept map..."):
-                try:
-                    # Create prompt for concept map generation
-                    map_prompt = f"Create a detailed {map_style} concept map for '{main_concept}' at a {detail_level} level of detail. "
-                    map_prompt += f"Target this for {education_level} level students. "
-                    map_prompt += f"Include these relationship types: {', '.join(relation_types)}. "
-                    
-                    if specific_subtopics:
-                        map_prompt += f"Include these specific subtopics: {specific_subtopics}. "
-                    
-                    if excluded_subtopics:
-                        map_prompt += f"Exclude these subtopics: {excluded_subtopics}. "
-                    
-                    if color_coding:
-                        map_prompt += "Use color coding to distinguish different types of concepts. "
-                    
-                    if include_definitions:
-                        map_prompt += "Include brief definitions for key terms. "
-                    
-                    if include_examples:
-                        map_prompt += "Include examples for key concepts. "
-                    
-                    if additional_instructions:
-                        map_prompt += f"Additional instructions: {additional_instructions} "
-                    
-                    # Specify format for the response
-                    map_prompt += """
-                    Format your response as a Mermaid diagram using the flowchart syntax. For example:
-
-                    ```mermaid
-                    flowchart TD
-                        A[Main Concept] --> B[Subtopic 1]
-                        A --> C[Subtopic 2]
-                        B --> D[Detail 1.1]
-                        B --> E[Detail 1.2]
-                        C --> F[Detail 2.1]
-                        C --> G[Detail 2.2]
-                    ```
-
-                    Use appropriate Mermaid syntax for your chosen map style, and include clear relationships between concepts.
-                    """
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f['content']}")
-        else:
-            st.markdown(f"**Analysis:** {message['content']}")
-        st.markdown("---")
-
-# Video Learning tab
-with selected_tab[4]:
-    if st.session_state.current_mode != "Video Learning":
-        st.session_state.chat_history = []
-        st.session_state.current_mode = "Video Learning"
-    
-    st.markdown("### Video Learning Assistant")
-    st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
-    
-    uploaded_video = st.file_uploader("Upload a video file:", type=["mp4", "mov", "avi", "mkv"])
-    
-    if uploaded_video is not None:
-        # Display video player
-        video_bytes = uploaded_video.getvalue()
-        st.video(video_bytes)
-        
-        video_analysis_options = st.multiselect("Select analysis types:", 
-                                      ["Video Transcription", "Content Summary", 
-                                       "Visual Concept Detection", "Key Moments Identification",
-                                       "Generate Quiz from Video", "Educational Value Assessment"])
-        
-        video_focus = st.selectbox("Educational Focus:", 
-                                ["General Analysis", "STEM Concepts", "Humanities Focus", 
-                                 "Language Learning", "Procedural Skills", "Critical Thinking"])
-        
-        if st.button("Analyze Video", use_container_width=True):
-            with st.spinner("Processing video..."):
-                try:
-                    # Create prompt for video analysis
-                    video_prompt = f"I've uploaded a video file named '{uploaded_video.name}'. "
-                    video_prompt += f"Please perform the following analyses: {', '.join(video_analysis_options)}. "
-                    video_prompt += f"Focus on {video_focus} educational aspects. "
-                    video_prompt += "Provide a detailed analysis of the educational value of this video."
-                    
-                    # Add to history
-                    st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
-                    
-                    # Create a generative model instance
-                    model = genai.GenerativeModel(
-                        model_name=model_name,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=safety_settings
-                    )
-                    
-                    # In production, you would process the video file here
-                    # For demo purposes, simulate the video analysis
-                    
-                    # Simulate an analysis response
-                    video_analysis = f"""
-# Video Analysis of {uploaded_video.name}
-
-## Content Summary
-This educational video covers [subject] with a focus on [specific topics]. The presenter demonstrates [concepts/skills] through visual examples and clear explanations.
-
-## Visual Concepts Detected
-- Concept 1 (00:15-01:30): Brief explanation
-- Concept 2 (02:45-04:10): Brief explanation
-- Concept 3 (05:20-07:45): Brief explanation
-
-## Key Educational Moments
-1. Introduction to [concept] (00:00-01:15)
-2. Demonstration of [technique/process] (03:20-05:40)
-3. Practice examples and applications (06:30-08:45)
-4. Summary and key takeaways (09:10-end)
-
-## Educational Value
-This video would be valuable for students studying [subject] at the [level] level. It effectively visualizes [complex concepts] that are difficult to convey through text alone.
-
-## Suggested Learning Activities
-- Pre-video introduction to basic terminology
-- Pause-point questions at key moments (times noted above)
-- Post-video assessment focusing on key concepts
-- Group discussion topics based on applications shown
-"""
-                    
-                    st.session_state.chat_history.append({"role": "assistant", "content": video_analysis})
-                    
-                    # Add interactive features
-                    st.markdown("### Video Interactive Learning")
-                    
-                    # Create tabs for different interactive features
-                    interactive_tabs = st.tabs(["Chat About Video", "Generate Timestamps", "Create Quiz"])
-                    
-                    with interactive_tabs[0]:
-                        st.markdown("#### Ask questions about this video")
-                        
-                        # Initialize video chat if not exists
-                        if "video_chat_history" not in st.session_state:
-                            st.session_state.video_chat_history = []
-                        
-                        # Display video chat history
-                        for message in st.session_state.video_chat_history:
-                            if message["role"] == "user":
-                                st.markdown(f"**You:** {message['content']}")
-                            else:
-                                st.markdown(f"**EduGenius:** {message['content']}")
-                            st.markdown("---")
-                        
-                        video_chat_input = st.text_input("Ask about this video:", 
-                                                placeholder="e.g., What are the main points covered in this video?")
-                        
-                        if st.button("Send", key="video_chat_button"):
-                            if video_chat_input:
-                                # Add to video chat history
-                                st.session_state.video_chat_history.append({"role": "user", "content": video_chat_input})
-                                
-                                # In a real implementation, you would process the video query here
-                                # For demo purposes, simulate a response
-                                chat_response = "I'd be happy to answer questions about the video content once the video processing capability is fully implemented. This would typically include information about the visual concepts, explanations, demonstrations, and educational value of the video you uploaded."
-                                
-                                st.session_state.video_chat_history.append({"role": "assistant", "content": chat_response})
-                    
-                    with interactive_tabs[1]:
-                        st.markdown("#### Generate Educational Timestamps")
-                        st.info("This would identify key moments in the video for educational purposes")
-                        
-                        timestamp_purpose = st.selectbox("Timestamp Purpose:", 
-                                                      ["Key Concepts", "Quiz Questions", "Discussion Points", "Practice Exercises"])
-                        
-                        if st.button("Generate Timestamps", key="timestamp_button"):
-                            # In a real implementation, you would analyze the video for timestamps
-                            # For demo purposes, display sample timestamps
-                            st.markdown("""
-                            ## Generated Educational Timestamps
-                            
-                            | Time | Content | Educational Value |
-                            |------|---------|-------------------|
-                            | 00:15 | Introduction to concept X | Establishes foundational knowledge |
-                            | 01:30 | First example demonstration | Visual application of theory |
-                            | 03:45 | Key insight explanation | Critical understanding point |
-                            | 05:20 | Common misconception addressed | Prevents learning errors |
-                            | 07:10 | Advanced application | Shows real-world relevance |
-                            | 09:30 | Summary of key points | Reinforces learning |
-                            """)
-                    
-                    with interactive_tabs[2]:
-                        st.markdown("#### Generate Quiz Based on Video")
-                        
-                        quiz_question_count = st.slider("Number of Questions:", min_value=3, max_value=15, value=5)
-                        quiz_format = st.selectbox("Quiz Format:", 
-                                                ["Multiple Choice", "True/False", "Mixed Formats", "Short Answer"])
-                        
-                        if st.button("Create Video Quiz", key="video_quiz_button"):
-                            # In a real implementation, you would generate questions based on video content
-                            # For demo purposes, display a sample quiz
-                            st.markdown(f"""
-                            ## Video Content Quiz ({quiz_question_count} Questions)
-                            
-                            1. **Question**: What is the main concept introduced at the beginning of the video?
-                               - A) Concept X
-                               - B) Concept Y
-                               - C) Concept Z
-                               - D) None of the above
-                               
-                            2. **Question**: According to the video, which of the following statements is true?
-                               - A) Statement 1
-                               - B) Statement 2
-                               - C) Statement 3
-                               - D) Statement 4
-                            
-                            3. **Question**: What technique was demonstrated at approximately 03:45 in the video?
-                               - A) Technique A
-                               - B) Technique B
-                               - C) Technique C
-                               - D) Technique D
-                            
-                            4. **Question**: The video suggests that the best application of this concept is in which field?
-                               - A) Field 1
-                               - B) Field 2
-                               - C) Field 3
-                               - D) All of the above
-                            
-                            5. **Question**: What was the concluding point made in the video?
-                               - A) Point A
-                               - B) Point B
-                               - C) Point C
-                               - D) Point D
-                            """)
-                
-                except Exception as e:
-                    st.error(f"Error analyzing video: {str(e)}")
-                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
-    
-    # Display video analysis history
     st.markdown("### Analysis Results")
     for message in st.session_state.chat_history:
         if message["role"] == "user":
@@ -1448,7 +633,7 @@ This audio would be suitable for students at the [level] level. It effectively e
                     st.error(f"Error analyzing audio: {str(e)}")
                     st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
     
-        # Display audio analysis history
+    # Display audio analysis history
     st.markdown("### Analysis Results")
     for message in st.session_state.chat_history:
         if message["role"] == "user":
@@ -1456,3 +641,454 @@ This audio would be suitable for students at the [level] level. It effectively e
         else:
             st.markdown(f"**Analysis:** {message['content']}")
         st.markdown("---")
+
+# Video Learning tab
+with selected_tab[4]:
+    if st.session_state.current_mode != "Video Learning":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Video Learning"
+    
+    st.markdown("### Video Learning Assistant")
+    st.markdown("Upload educational videos for AI analysis, summaries, and interactive learning")
+    
+    uploaded_video = st.file_uploader("Upload a video file:", type=["mp4", "mov", "avi", "mkv"])
+    
+    if uploaded_video is not None:
+        # Display video player
+        video_bytes = uploaded_video.getvalue()
+        st.video(video_bytes)
+        
+        video_analysis_options = st.multiselect("Select analysis types:", 
+                                      ["Video Transcription", "Content Summary", 
+                                       "Visual Concept Detection", "Key Moments Identification",
+                                       "Generate Quiz from Video", "Educational Value Assessment"])
+        
+        video_focus = st.selectbox("Educational Focus:", 
+                                ["General Analysis", "STEM Concepts", "Humanities Focus", 
+                                 "Language Learning", "Procedural Skills", "Critical Thinking"])
+        
+        if st.button("Analyze Video", use_container_width=True):
+            with st.spinner("Processing video..."):
+                try:
+                    # Create prompt for video analysis
+                    video_prompt = f"I've uploaded a video file named '{uploaded_video.name}'. "
+                    video_prompt += f"Please perform the following analyses: {', '.join(video_analysis_options)}. "
+                    video_prompt += f"Focus on {video_focus} educational aspects. "
+                    video_prompt += "Provide a detailed analysis of the educational value of this video."
+                    
+                    # Add to history
+                    st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
+                    
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
+                    )
+                    
+                    # In production, you would process the video file here
+                    # For demo purposes, simulate the video analysis
+                    
+                    # Simulate an analysis response
+                    video_analysis = f"""
+# Video Analysis of {uploaded_video.name}
+
+## Content Summary
+This educational video covers [subject] with a focus on [specific topics]. The presenter demonstrates [concepts/skills] through visual examples and clear explanations.
+
+## Visual Concepts Detected
+- Concept 1 (00:15-01:30): Brief explanation
+- Concept 2 (02:45-04:10): Brief explanation
+- Concept 3 (05:20-07:45): Brief explanation
+
+## Key Educational Moments
+1. Introduction to [concept] (00:00-01:15)
+2. Demonstration of [technique/process] (03:20-05:40)
+3. Practice examples and applications (06:30-08:45)
+4. Summary and key takeaways (09:10-end)
+
+## Educational Value
+This video would be valuable for students studying [subject] at the [level] level. It effectively visualizes [complex concepts] that are difficult to convey through text alone.
+
+## Suggested Learning Activities
+- Pre-video introduction to basic terminology
+- Pause-point questions at key moments (times noted above)
+- Post-video assessment focusing on key concepts
+- Group discussion topics based on applications shown
+"""
+                    
+                    st.session_state.chat_history.append({"role": "assistant", "content": video_analysis})
+                    
+                    # Add interactive features
+                    st.markdown("### Video Interactive Learning")
+                    
+                    # Create tabs for different interactive features
+                    interactive_tabs = st.tabs(["Chat About Video", "Generate Timestamps", "Create Quiz"])
+                    
+                    with interactive_tabs[0]:
+                        st.markdown("#### Ask questions about this video")
+                        
+                        # Initialize video chat if not exists
+                        if "video_chat_history" not in st.session_state:
+                            st.session_state.video_chat_history = []
+                        
+                        # Display video chat history
+                        for message in st.session_state.video_chat_history:
+                            if message["role"] == "user":
+                                st.markdown(f"**You:** {message['content']}")
+                            else:
+                                st.markdown(f"**EduGenius:** {message['content']}")
+                            st.markdown("---")
+                        
+                        video_chat_input = st.text_input("Ask about this video:", 
+                                                placeholder="e.g., What are the main points covered in this video?")
+                        
+                        if st.button("Send", key="video_chat_button"):
+                            if video_chat_input:
+                                # Add to video chat history
+                                st.session_state.video_chat_history.append({"role": "user", "content": video_chat_input})
+                                
+                                # In a real implementation, you would process the video query here
+                                # For demo purposes, simulate a response
+                                chat_response = "I'd be happy to answer questions about the video content once the video processing capability is fully implemented. This would typically include information about the visual concepts, explanations, demonstrations, and educational value of the video you uploaded."
+                                
+                                st.session_state.video_chat_history.append({"role": "assistant", "content": chat_response})
+                    
+                    with interactive_tabs[1]:
+                        st.markdown("#### Generate Educational Timestamps")
+                        st.info("This would identify key moments in the video for educational purposes")
+                        
+                        timestamp_purpose = st.selectbox("Timestamp Purpose:", 
+                                                      ["Key Concepts", "Quiz Questions", "Discussion Points", "Practice Exercises"])
+                        
+                        if st.button("Generate Timestamps", key="timestamp_button"):
+                            # In a real implementation, you would analyze the video for timestamps
+                            # For demo purposes, display sample timestamps
+                            st.markdown("""
+                            ## Generated Educational Timestamps
+                            
+                            | Time | Content | Educational Value |
+                            |------|---------|-------------------|
+                            | 00:15 | Introduction to concept X | Establishes foundational knowledge |
+                            | 01:30 | First example demonstration | Visual application of theory |
+                            | 03:45 | Key insight explanation | Critical understanding point |
+                            | 05:20 | Common misconception addressed | Prevents learning errors |
+                            | 07:10 | Advanced application | Shows real-world relevance |
+                            | 09:30 | Summary of key points | Reinforces learning |
+                            """)
+                    
+                    with interactive_tabs[2]:
+                        st.markdown("#### Generate Quiz Based on Video")
+                        
+                        quiz_question_count = st.slider("Number of Questions:", min_value=3, max_value=15, value=5)
+                        quiz_format = st.selectbox("Quiz Format:", 
+                                                ["Multiple Choice", "True/False", "Mixed Formats", "Short Answer"])
+                        
+                        if st.button("Create Video Quiz", key="video_quiz_button"):
+                            # In a real implementation, you would generate questions based on video content
+                            # For demo purposes, display a sample quiz
+                            st.markdown(f"""
+                            ## Video Content Quiz ({quiz_question_count} Questions)
+                            
+                            1. **Question**: What is the main concept introduced at the beginning of the video?
+                               - A) Concept X
+                               - B) Concept Y
+                               - C) Concept Z
+                               - D) None of the above
+                               
+                            2. **Question**: According to the video, which of the following statements is true?
+                               - A) Statement 1
+                               - B) Statement 2
+                               - C) Statement 3
+                               - D) Statement 4
+                            
+                            3. **Question**: What technique was demonstrated at approximately 03:45 in the video?
+                               - A) Technique A
+                               - B) Technique B
+                               - C) Technique C
+                               - D) Technique D
+                            
+                            4. **Question**: The video suggests that the best application of this concept is in which field?
+                               - A) Field 1
+                               - B) Field 2
+                               - C) Field 3
+                               - D) All of the above
+                            
+                            5. **Question**: What was the concluding point made in the video?
+                               - A) Point A
+                               - B) Point B
+                               - C) Point C
+                               - D) Point D
+                            """)
+                
+                except Exception as e:
+                    st.error(f"Error analyzing video: {str(e)}")
+                    st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display video analysis history
+    st.markdown("### Analysis Results")
+    for message in st.session_state.chat_history:
+        if message["role"] == "user":
+            st.markdown(f"**Request:** {message['content']}")
+        else:
+            st.markdown(f"**Analysis:** {message['content']}")
+        st.markdown("---")
+
+# Quiz Generator tab
+with selected_tab[5]:
+    if st.session_state.current_mode != "Quiz Generator":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Quiz Generator"
+    
+    st.markdown("### AI Quiz Generator")
+    st.markdown("Create customized quizzes and assessments for any subject or learning level")
+    
+    # Quiz generation form
+    with st.form("quiz_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            subject = st.text_input("Subject or Topic:", placeholder="e.g., World History, Algebra, Biology")
+            subtopic = st.text_input("Specific Subtopic (optional):", placeholder="e.g., World War II, Quadratic Equations")
+            education_level = st.selectbox("Education Level:", 
+                                         ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate"])
+        
+        with col2:
+            question_count = st.slider("Number of Questions:", 5, 25, 10)
+            quiz_type = st.selectbox("Quiz Type:", 
+                                    ["Multiple Choice", "True/False", "Fill in the Blank", "Mixed Format", "Short Answer"])
+            difficulty = st.select_slider("Difficulty Level:", 
+                                        options=["Easy", "Medium", "Hard", "Challenging"])
+        
+        # Additional options
+        include_answers = st.checkbox("Include Answer Key", value=True)
+        include_explanations = st.checkbox("Include Explanations", value=True)
+        auto_grade = st.checkbox("Enable Auto-grading Features", value=True)
+        
+        # Content focus
+        content_focus = st.multiselect("Content Focus:", 
+                                     ["Factual Recall", "Conceptual Understanding", "Application", 
+                                      "Analysis", "Critical Thinking", "Problem Solving"],
+                                     default=["Factual Recall", "Conceptual Understanding"])
+        
+        # Special instructions
+        special_instructions = st.text_area("Special Instructions (optional):", 
+                                          placeholder="Any specific requirements or focus areas for the quiz...")
+        
+        # Generate quiz button
+        generate_button = st.form_submit_button("Generate Quiz", use_container_width=True)
+    
+    if generate_button:
+        with st.spinner("Creating quiz..."):
+            try:
+                # Create prompt for quiz generation
+                quiz_prompt = f"Create a quiz on {subject}"
+                if subtopic:
+                    quiz_prompt += f" focusing on {subtopic}"
+                
+                quiz_prompt += f". The quiz should be for {education_level} level students and contain {question_count} {quiz_type} questions at a {difficulty} difficulty level."
+                
+                if content_focus:
+                    quiz_prompt += f" Focus on {', '.join(content_focus)}."
+                
+                if include_answers:
+                    quiz_prompt += " Include an answer key."
+                
+                if include_explanations:
+                    quiz_prompt += " Include explanations for each answer."
+                
+                if special_instructions:
+                    quiz_prompt += f" Additional instructions: {special_instructions}"
+                
+                # Add to history
+                st.session_state.chat_history.append({"role": "user", "content": quiz_prompt})
+                
+                # Create a generative model instance
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    generation_config=get_generation_config(temperature=0.3),
+                    safety_settings=safety_settings
+                )
+                
+                # Generate content
+                response = model.generate_content(quiz_prompt)
+                
+                # Extract response text
+                response_text = response.text
+                st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                
+                # Display the quiz
+                st.markdown("## Generated Quiz")
+                st.markdown(response_text)
+                
+                # Add export options
+                st.download_button(
+                    label="Export Quiz as Text",
+                    data=response_text,
+                    file_name=f"Quiz_{subject.replace(' ', '_')}.txt",
+                    mime="text/plain",
+                )
+                
+                # Quiz usage options
+                st.markdown("### Quiz Usage Options")
+                
+                usage_cols = st.columns(4)
+                with usage_cols[0]:
+                    if st.button("Print Version", use_container_width=True):
+                        st.info("In a full implementation, this would format the quiz for printing")
+                
+                with usage_cols[1]:
+                    if st.button("Student Version", use_container_width=True):
+                        st.info("This would create a version without answers for students")
+                
+                with usage_cols[2]:
+                    if st.button("Teacher Version", use_container_width=True):
+                        st.info("This would create a version with answers and grading tips")
+                
+                with usage_cols[3]:
+                    if st.button("Interactive Version", use_container_width=True):
+                        st.info("This would create an interactive quiz students could take online")
+            
+            except Exception as e:
+                st.error(f"Error generating quiz: {str(e)}")
+                st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display previously generated quizzes
+    st.markdown("### Your Generated Quizzes")
+    if len(st.session_state.chat_history) > 0:
+        for i in range(0, len(st.session_state.chat_history), 2):
+            if i+1 < len(st.session_state.chat_history):
+                with st.expander(f"Quiz on {subject}", expanded=False):
+                    st.markdown(st.session_state.chat_history[i+1]["content"])
+    else:
+        st.info("No quizzes generated yet. Create your first quiz above!")
+
+# Concept Mapper tab
+with selected_tab[6]:
+    if st.session_state.current_mode != "Concept Mapper":
+        st.session_state.chat_history = []
+        st.session_state.current_mode = "Concept Mapper"
+    
+    st.markdown("### AI Concept Mapper")
+    st.markdown("Visualize connections between concepts to enhance understanding and retention")
+    
+    # Concept mapping form
+    with st.form("concept_map_form"):
+        main_topic = st.text_input("Main Topic:", placeholder="e.g., Photosynthesis, Democracy, Machine Learning")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            complexity = st.select_slider("Map Complexity:", 
+                                        options=["Simple", "Moderate", "Detailed", "Comprehensive"])
+            focus_area = st.selectbox("Focus Area:", 
+                                    ["Hierarchical Structure", "Process Flow", "Cause and Effect", 
+                                     "Compare and Contrast", "Theoretical Framework"])
+        
+        with col2:
+            education_level = st.selectbox("Education Level:", 
+                                         ["Elementary", "Middle School", "High School", "Undergraduate", "Graduate"],
+                                         key="concept_edu_level")
+            visual_style = st.selectbox("Visual Style:", 
+                                      ["Academic", "Educational", "Mind Map", "Network Diagram", "Infographic"])
+        
+        # Additional options
+        include_definitions = st.checkbox("Include Concept Definitions", value=True)
+        include_examples = st.checkbox("Include Examples", value=True)
+        include_resources = st.checkbox("Include Additional Resources", value=False)
+        
+        # Custom content
+        custom_content = st.text_area("Custom Content or Specific Concepts to Include (optional):", 
+                                    placeholder="List specific concepts or content you want included in the map...")
+        
+        # Generate map button
+        map_button = st.form_submit_button("Generate Concept Map", use_container_width=True)
+    
+    if map_button:
+        with st.spinner("Creating concept map..."):
+            try:
+                # Create prompt for concept map generation
+                map_prompt = f"Create a {complexity} concept map about {main_topic} for {education_level} level students. "
+                map_prompt += f"The concept map should focus on {focus_area} and use a {visual_style} style. "
+                
+                if include_definitions:
+                    map_prompt += "Include brief definitions for key concepts. "
+                
+                if include_examples:
+                    map_prompt += "Include examples where appropriate. "
+                
+                if include_resources:
+                    map_prompt += "Suggest additional resources for further learning. "
+                
+                if custom_content:
+                    map_prompt += f"Be sure to include these specific concepts or content: {custom_content}. "
+                
+                map_prompt += "Provide the concept map in a format that clearly shows relationships between concepts."
+                
+                # Add to history
+                st.session_state.chat_history.append({"role": "user", "content": map_prompt})
+                
+                # Create a generative model instance
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    generation_config=get_generation_config(temperature=0.3),
+                    safety_settings=safety_settings
+                )
+                
+                # Generate content
+                response = model.generate_content(map_prompt)
+                
+                # Extract response text
+                response_text = response.text
+                st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+                
+                # Display the concept map description
+                st.markdown("## Generated Concept Map")
+                st.markdown(response_text)
+                
+                # Add export and visualization options
+                st.download_button(
+                    label="Export Concept Map Description",
+                    data=response_text,
+                    file_name=f"ConceptMap_{main_topic.replace(' ', '_')}.txt",
+                    mime="text/plain",
+                )
+                
+                # Visual representation (in a real implementation, this would create a graphical concept map)
+                st.markdown("### Visual Representation")
+                st.info("In a full implementation, this would generate an interactive visual concept map based on the description above.")
+                
+                # Sample visualization (placeholder)
+                st.markdown("""
+                This is a placeholder for the visual concept map. In a complete implementation, 
+                this would be an interactive visualization showing concepts and their relationships.
+                """)
+                
+                # Study tools based on the concept map
+                st.markdown("### Study Tools")
+                
+                tool_cols = st.columns(3)
+                with tool_cols[0]:
+                    if st.button("Generate Flashcards", use_container_width=True):
+                        st.info("This would create flashcards based on the concept map")
+                
+                with tool_cols[1]:
+                    if st.button("Create Study Guide", use_container_width=True):
+                        st.info("This would create a study guide based on the concept map")
+                
+                with tool_cols[2]:
+                    if st.button("Generate Quiz", use_container_width=True):
+                        st.info("This would create a quiz based on the concept map")
+            
+            except Exception as e:
+                st.error(f"Error generating concept map: {str(e)}")
+                st.session_state.chat_history.append({"role": "assistant", "content": f"I apologize, but I encountered an error: {str(e)}"})
+    
+    # Display previously generated concept maps
+    st.markdown("### Your Concept Maps")
+    if len(st.session_state.chat_history) > 0:
+        for i in range(0, len(st.session_state.chat_history), 2):
+            if i+1 < len(st.session_state.chat_history):
+                with st.expander(f"Concept Map on {main_topic}", expanded=False):
+                    st.markdown(st.session_state.chat_history[i+1]["content"])
+    else:
+        st.info("No concept maps generated yet. Create your first concept map above!")
