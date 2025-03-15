@@ -292,29 +292,22 @@ with selected_tab[0]:
         
         with st.spinner("Thinking..."):
             try:
-                # Prepare content for generation
-                contents = []
-                
-                # Create user message
-                if has_multimedia and media_type == "image":
-                    # For image content
-                    parts = [
-                        types.Part.from_text(text=prompt),
-                        types.Part.from_data(data=media_bytes, mime_type="image/jpeg")
-                    ]
-                    contents.append(types.Content(role="user", parts=parts))
-                else:
-                    # For text-only content
-                    parts = [types.Part.from_text(text=prompt)]
-                    contents.append(types.Content(role="user", parts=parts))
-                
-                # Generate content
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=contents,
+                # Create a generative model instance
+                model = genai.GenerativeModel(
+                    model_name=model_name,
                     generation_config=get_generation_config(temperature=0.7),
-                    safety_settings=get_safety_settings()
+                    safety_settings=safety_settings
                 )
+                
+                # Generate response based on whether there's multimedia
+                if has_multimedia and media_type == "image":
+                    response = model.generate_content([
+                        prompt,
+                        {"mime_type": "image/jpeg", "data": media_bytes}
+                    ])
+                else:
+                    # For text-only or other media types (which we're simulating for now)
+                    response = model.generate_content(prompt)
                 
                 # Extract response text
                 response_text = response.text
@@ -374,21 +367,15 @@ with selected_tab[1]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"Please analyze my document '{uploaded_file.name}' for: {', '.join(analysis_type)}"})
                     
-                    # Prepare content for generation
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=analysis_prompt)]
-                        )
-                    ]
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
+                    )
                     
                     # Generate content
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
-                        generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=get_safety_settings()
-                    )
+                    response = model.generate_content(analysis_prompt)
                     
                     # Extract response text
                     response_text = response.text
@@ -467,24 +454,18 @@ with selected_tab[2]:
                         image.save(img_byte_arr, format='PNG')
                         img_byte_arr = img_byte_arr.getvalue()
                         
-                        # Prepare content for generation
-                        contents = [
-                            types.Content(
-                                role="user",
-                                parts=[
-                                    types.Part.from_text(text=image_chat_input),
-                                    types.Part.from_data(data=img_byte_arr, mime_type="image/png")
-                                ]
-                            )
-                        ]
-                        
-                        # Generate content
-                        response = client.models.generate_content(
-                            model=model_name,
-                            contents=contents,
+                        # Create a generative model instance
+                        model = genai.GenerativeModel(
+                            model_name=model_name,
                             generation_config=get_generation_config(temperature=0.2),
-                            safety_settings=get_safety_settings()
+                            safety_settings=safety_settings
                         )
+                        
+                        # Prepare multipart content
+                        response = model.generate_content([
+                            image_chat_input,
+                            {"mime_type": "image/png", "data": img_byte_arr}
+                        ])
                         
                         # Extract response text
                         response_text = response.text
@@ -513,24 +494,18 @@ with selected_tab[2]:
                     image.save(img_byte_arr, format='PNG')
                     img_byte_arr = img_byte_arr.getvalue()
                     
-                    # Prepare content for generation
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[
-                                types.Part.from_text(text=image_prompt),
-                                types.Part.from_data(data=img_byte_arr, mime_type="image/png")
-                            ]
-                        )
-                    ]
-                    
-                    # Generate content
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=contents,
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
                         generation_config=get_generation_config(temperature=0.2),
-                        safety_settings=get_safety_settings()
+                        safety_settings=safety_settings
                     )
+                    
+                    # Prepare multipart content
+                    response = model.generate_content([
+                        image_prompt,
+                        {"mime_type": "image/png", "data": img_byte_arr}
+                    ])
                     
                     # Extract response text
                     response_text = response.text
@@ -591,13 +566,12 @@ with selected_tab[3]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"[Audio uploaded] Please analyze with: {', '.join(analysis_options)}"})
                     
-                    # Prepare content for generation (audio analysis)
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=audio_prompt)]
-                        )
-                    ]
+                    # Create a generative model instance for audio
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
+                    )
                     
                     # In production, you would process the audio file here
                     # For demo purposes, simulate the audio analysis
@@ -705,19 +679,23 @@ with selected_tab[4]:
                     # Add to history
                     st.session_state.chat_history.append({"role": "user", "content": f"[Video uploaded] Please analyze with: {', '.join(video_analysis_options)}"})
                     
-                    # Prepare content for generation (video analysis)
-                    contents = [
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=video_prompt)]
-                        )
-                    ]
+                    # Create a generative model instance
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        generation_config=get_generation_config(temperature=0.2),
+                        safety_settings=safety_settings
+                    )
                     
                     # In production, you would process the video file here
                     # For demo purposes, simulate the video analysis
+                    response = model.generate_content(video_prompt)
                     
-                    # Simulate an analysis response
-                    video_analysis = f"""
+                    # Simulate an analysis response or use the model response
+                    if hasattr(response, 'text'):
+                        video_analysis = response.text
+                    else:
+                        # Fallback to a simulated response if needed
+                        video_analysis = f"""
 # Video Analysis of {uploaded_video.name}
 
 ## Content Summary
@@ -775,10 +753,26 @@ This video would be valuable for students studying [subject] at the [level] leve
                                 # Add to video chat history
                                 st.session_state.video_chat_history.append({"role": "user", "content": video_chat_input})
                                 
-                                # In a real implementation, you would process the video query here
-                                # For demo purposes, simulate a response
-                                chat_response = "I'd be happy to answer questions about the video content once the video processing capability is fully implemented. This would typically include information about the visual concepts, explanations, demonstrations, and educational value of the video you uploaded."
-                                
+                                try:
+                                    # Create model instance
+                                    model = genai.GenerativeModel(
+                                        model_name=model_name,
+                                        generation_config=get_generation_config(temperature=0.2),
+                                        safety_settings=safety_settings
+                                    )
+                                    
+                                    # Generate response
+                                    response = model.generate_content(video_chat_input)
+                                    
+                                    # In a real implementation, you would process the video query here
+                                    # For demo purposes, use simulated response if needed
+                                    if hasattr(response, 'text'):
+                                        chat_response = response.text
+                                    else:
+                                        chat_response = "I'd be happy to answer questions about the video content once the video processing capability is fully implemented. This would typically include information about the visual concepts, explanations, demonstrations, and educational value of the video you uploaded."
+                                except Exception as e:
+                                    chat_response = f"I encountered an error while processing your question: {str(e)}"
+                                    
                                 st.session_state.video_chat_history.append({"role": "assistant", "content": chat_response})
                     
                     with interactive_tabs[1]:
@@ -789,20 +783,38 @@ This video would be valuable for students studying [subject] at the [level] leve
                                                       ["Key Concepts", "Quiz Questions", "Discussion Points", "Practice Exercises"])
                         
                         if st.button("Generate Timestamps", key="timestamp_button"):
-                            # In a real implementation, you would analyze the video for timestamps
-                            # For demo purposes, display sample timestamps
-                            st.markdown("""
-                            ## Generated Educational Timestamps
-                            
-                            | Time | Content | Educational Value |
-                            |------|---------|-------------------|
-                            | 00:15 | Introduction to concept X | Establishes foundational knowledge |
-                            | 01:30 | First example demonstration | Visual application of theory |
-                            | 03:45 | Key insight explanation | Critical understanding point |
-                            | 05:20 | Common misconception addressed | Prevents learning errors |
-                            | 07:10 | Advanced application | Shows real-world relevance |
-                            | 09:30 | Summary of key points | Reinforces learning |
-                            """)
+                            try:
+                                # Create model instance
+                                model = genai.GenerativeModel(
+                                    model_name=model_name,
+                                    generation_config=get_generation_config(temperature=0.2),
+                                    safety_settings=safety_settings
+                                )
+                                
+                                # Generate timestamps
+                                timestamp_prompt = f"Generate educational timestamps for a video about {uploaded_video.name} focusing on {timestamp_purpose}."
+                                response = model.generate_content(timestamp_prompt)
+                                
+                                # Display generated or simulated timestamps
+                                if hasattr(response, 'text'):
+                                    st.markdown(response.text)
+                                else:
+                                    # In a real implementation, you would analyze the video for timestamps
+                                    # For demo purposes, display sample timestamps
+                                    st.markdown("""
+                                    ## Generated Educational Timestamps
+                                    
+                                    | Time | Content | Educational Value |
+                                    |------|---------|-------------------|
+                                    | 00:15 | Introduction to concept X | Establishes foundational knowledge |
+                                    | 01:30 | First example demonstration | Visual application of theory |
+                                    | 03:45 | Key insight explanation | Critical understanding point |
+                                    | 05:20 | Common misconception addressed | Prevents learning errors |
+                                    | 07:10 | Advanced application | Shows real-world relevance |
+                                    | 09:30 | Summary of key points | Reinforces learning |
+                                    """)
+                            except Exception as e:
+                                st.error(f"Error generating timestamps: {str(e)}")
                     
                     with interactive_tabs[2]:
                         st.markdown("#### Generate Quiz Based on Video")
@@ -812,41 +824,59 @@ This video would be valuable for students studying [subject] at the [level] leve
                                                 ["Multiple Choice", "True/False", "Mixed Formats", "Short Answer"])
                         
                         if st.button("Create Video Quiz", key="video_quiz_button"):
-                            # In a real implementation, you would generate questions based on video content
-                            # For demo purposes, display a sample quiz
-                            st.markdown(f"""
-                            ## Video Content Quiz ({quiz_question_count} Questions)
-                            
-                            1. **Question**: What is the main concept introduced at the beginning of the video?
-                               - A) Concept X
-                               - B) Concept Y
-                               - C) Concept Z
-                               - D) None of the above
-                               
-                            2. **Question**: According to the video, which of the following statements is true?
-                               - A) Statement 1
-                               - B) Statement 2
-                               - C) Statement 3
-                               - D) Statement 4
-                            
-                            3. **Question**: What technique was demonstrated at approximately 03:45 in the video?
-                               - A) Technique A
-                               - B) Technique B
-                               - C) Technique C
-                               - D) Technique D
-                            
-                            4. **Question**: The video suggests that the best application of this concept is in which field?
-                               - A) Field 1
-                               - B) Field 2
-                               - C) Field 3
-                               - D) All of the above
-                            
-                            5. **Question**: What was the concluding point made in the video?
-                               - A) Point A
-                               - B) Point B
-                               - C) Point C
-                               - D) Point D
-                            """)
+                            try:
+                                # Create model instance
+                                model = genai.GenerativeModel(
+                                    model_name=model_name,
+                                    generation_config=get_generation_config(temperature=0.2),
+                                    safety_settings=safety_settings
+                                )
+                                
+                                # Generate quiz
+                                quiz_prompt = f"Create a {quiz_format} quiz with {quiz_question_count} questions based on a video about {uploaded_video.name}."
+                                response = model.generate_content(quiz_prompt)
+                                
+                                # Display generated or simulated quiz
+                                if hasattr(response, 'text'):
+                                    st.markdown(response.text)
+                                else:
+                                    # In a real implementation, you would generate questions based on video content
+                                    # For demo purposes, display a sample quiz
+                                    st.markdown(f"""
+                                    ## Video Content Quiz ({quiz_question_count} Questions)
+                                    
+                                    1. **Question**: What is the main concept introduced at the beginning of the video?
+                                       - A) Concept X
+                                       - B) Concept Y
+                                       - C) Concept Z
+                                       - D) None of the above
+                                       
+                                    2. **Question**: According to the video, which of the following statements is true?
+                                       - A) Statement 1
+                                       - B) Statement 2
+                                       - C) Statement 3
+                                       - D) Statement 4
+                                    
+                                    3. **Question**: What technique was demonstrated at approximately 03:45 in the video?
+                                       - A) Technique A
+                                       - B) Technique B
+                                       - C) Technique C
+                                       - D) Technique D
+                                    
+                                    4. **Question**: The video suggests that the best application of this concept is in which field?
+                                       - A) Field 1
+                                       - B) Field 2
+                                       - C) Field 3
+                                       - D) All of the above
+                                    
+                                    5. **Question**: What was the concluding point made in the video?
+                                       - A) Point A
+                                       - B) Point B
+                                       - C) Point C
+                                       - D) Point D
+                                    """)
+                            except Exception as e:
+                                st.error(f"Error generating quiz: {str(e)}")
                 
                 except Exception as e:
                     st.error(f"Error analyzing video: {str(e)}")
@@ -930,21 +960,15 @@ with selected_tab[5]:
                 # Add to history
                 st.session_state.chat_history.append({"role": "user", "content": quiz_prompt})
                 
-                # Prepare content for generation
-                contents = [
-                    types.Content(
-                        role="user",
-                        parts=[types.Part.from_text(text=quiz_prompt)]
-                    )
-                ]
+                # Create a generative model instance
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    generation_config=get_generation_config(temperature=0.3),
+                    safety_settings=safety_settings
+                )
                 
                 # Generate content
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=contents,
-                    generation_config=get_generation_config(temperature=0.3),
-                    safety_settings=get_safety_settings()
-                )
+                response = model.generate_content(quiz_prompt)
                 
                 # Extract response text
                 response_text = response.text
@@ -1060,21 +1084,15 @@ with selected_tab[6]:
                 # Add to history
                 st.session_state.chat_history.append({"role": "user", "content": map_prompt})
                 
-                # Prepare content for generation
-                contents = [
-                    types.Content(
-                        role="user",
-                        parts=[types.Part.from_text(text=map_prompt)]
-                    )
-                ]
+                # Create a generative model instance
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    generation_config=get_generation_config(temperature=0.3),
+                    safety_settings=safety_settings
+                )
                 
                 # Generate content
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=contents,
-                    generation_config=get_generation_config(temperature=0.3),
-                    safety_settings=get_safety_settings()
-                )
+                response = model.generate_content(map_prompt)
                 
                 # Extract response text
                 response_text = response.text
