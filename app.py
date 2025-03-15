@@ -87,7 +87,7 @@ def get_gemini_client():
 
 # Initialize the client
 get_gemini_client()
-model_name = "gemini-1.5-flash"  # Using Gemini 1.5 Flash model
+model_name = "gemini-2.0-flash"  # Using Gemini 1.5 Flash model
 
 # Common generation config
 def get_generation_config(temperature=0.7):
